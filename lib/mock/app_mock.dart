@@ -1,0 +1,142 @@
+import '../models/app_models.dart';
+
+abstract final class AppMock {
+  static final weights = [
+    WeightRecord(
+        date: DateTime.now().subtract(const Duration(days: 6)), weight: 52.9),
+    WeightRecord(
+        date: DateTime.now().subtract(const Duration(days: 5)), weight: 52.8),
+    WeightRecord(
+        date: DateTime.now().subtract(const Duration(days: 4)), weight: 52.6),
+    WeightRecord(
+        date: DateTime.now().subtract(const Duration(days: 3)), weight: 52.5),
+    WeightRecord(
+        date: DateTime.now().subtract(const Duration(days: 2)), weight: 52.7),
+    WeightRecord(
+        date: DateTime.now().subtract(const Duration(days: 1)), weight: 52.4),
+    WeightRecord(date: DateTime.now(), weight: 52.3),
+  ];
+
+  static final foodLogs = [
+    MealRecord(
+      id: 'meal-1',
+      date: DateTime.now(),
+      mealType: MealType.breakfast,
+      foodName: '燕麦拿铁',
+      description: '中杯燕麦拿铁',
+      estimatedCalories: 210,
+      imageUrl: null,
+      portionText: '一杯',
+      ingredientsText: '',
+      note: '',
+      recordTime: DateTime.now().subtract(const Duration(hours: 6)),
+      stickerStyle: '浅黄色描边',
+      sourceType: 'text',
+    ),
+    MealRecord(
+      id: 'meal-2',
+      date: DateTime.now(),
+      mealType: MealType.breakfast,
+      foodName: '水煮蛋',
+      description: '1 个水煮蛋',
+      estimatedCalories: 90,
+      imageUrl: null,
+      portionText: '一整份',
+      ingredientsText: '',
+      note: '',
+      recordTime: DateTime.now().subtract(const Duration(hours: 6)),
+      stickerStyle: '白色描边',
+      sourceType: 'text',
+    ),
+    MealRecord(
+      id: 'meal-3',
+      date: DateTime.now(),
+      mealType: MealType.breakfast,
+      foodName: '全麦面包',
+      description: '2 片全麦面包',
+      estimatedCalories: 150,
+      imageUrl: null,
+      portionText: '一整份',
+      ingredientsText: '',
+      note: '',
+      recordTime: DateTime.now().subtract(const Duration(hours: 5)),
+      stickerStyle: '浅绿色描边',
+      sourceType: 'text',
+    ),
+    MealRecord(
+      id: 'meal-4',
+      date: DateTime.now(),
+      mealType: MealType.lunch,
+      foodName: '番茄牛肉饭',
+      description: '一份番茄牛肉饭',
+      estimatedCalories: 520,
+      imageUrl: null,
+      portionText: '一整份',
+      ingredientsText: '',
+      note: '',
+      recordTime: DateTime.now().subtract(const Duration(hours: 2)),
+      stickerStyle: '浅黄色描边',
+      sourceType: 'text',
+    ),
+    MealRecord(
+      id: 'meal-5',
+      date: DateTime.now(),
+      mealType: MealType.lunch,
+      foodName: '清炒时蔬',
+      description: '相册图片 Mock 识别',
+      estimatedCalories: 130,
+      imageUrl: 'mock://meal/vegetables',
+      portionText: '一份',
+      ingredientsText: '',
+      note: '午餐加一份蔬菜',
+      recordTime: DateTime.now().subtract(const Duration(hours: 2)),
+      stickerStyle: '浅绿色描边',
+      sourceType: 'photo',
+    ),
+    MealRecord(
+      id: 'meal-6',
+      date: DateTime.now(),
+      mealType: MealType.snack,
+      foodName: '苹果',
+      description: '一个中等大小苹果',
+      estimatedCalories: 95,
+      imageUrl: null,
+      portionText: '一整份',
+      ingredientsText: '',
+      note: '',
+      recordTime: DateTime.now().subtract(const Duration(hours: 1)),
+      stickerStyle: '白色描边',
+      sourceType: 'text',
+    ),
+  ];
+
+  static final moodJournal = [
+    PetMoodLog(
+      id: 'mood-1',
+      time: DateTime.now().subtract(const Duration(hours: 3)),
+      userText: '上午的事情有点多，不过一件件做完后踏实了不少。',
+      emotionLabel: '平静',
+      emotionScore: .45,
+      petReply: '你已经把混乱慢慢整理好了，做得很好。',
+      suggestion: '保持现在的节奏，给自己留一点休息时间。',
+    ),
+    PetMoodLog(
+      id: 'mood-2',
+      time: DateTime.now().subtract(const Duration(days: 1, hours: 2)),
+      userText: '昨天剪完了一条拖了很久的视频，终于松了一口气。',
+      emotionLabel: '开心',
+      emotionScore: .82,
+      petReply: '这份完成感值得被记住，我替你高兴。',
+      suggestion: '把这份完成感记录下来。',
+    ),
+    PetMoodLog(
+      id: 'mood-3',
+      time: DateTime.now().subtract(const Duration(days: 2, hours: 5)),
+      userText: '睡得有点晚，下午一直提不起精神。',
+      emotionLabel: '疲惫',
+      emotionScore: .72,
+      petReply: '今天不用做到满分，照顾好体力也很重要。',
+      suggestion: '今晚尽量提前半小时休息。',
+    ),
+  ];
+}
