@@ -101,6 +101,14 @@ void main() {
   test('preview auth bypass only accepts local preview URLs', () {
     expect(
       isPreviewAuthBypassUri(
+        Uri.parse('http://127.0.0.1:7358/'),
+        compileTimeBypass: true,
+        debugMode: false,
+      ),
+      isTrue,
+    );
+    expect(
+      isPreviewAuthBypassUri(
         Uri.parse(
           'http://127.0.0.1:7358/?preview_auth_bypass=stable-static-20260620',
         ),

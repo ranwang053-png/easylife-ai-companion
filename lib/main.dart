@@ -37,10 +37,11 @@ bool isPreviewAuthBypassUri(
   required bool compileTimeBypass,
   required bool debugMode,
 }) {
-  if (debugMode && compileTimeBypass) return true;
-
   return isLocalPreviewHost(uri) &&
-      uri.queryParameters['preview_auth_bypass'] == _previewAuthBypassToken;
+      (compileTimeBypass ||
+          debugMode ||
+          uri.queryParameters['preview_auth_bypass'] ==
+              _previewAuthBypassToken);
 }
 
 @visibleForTesting
