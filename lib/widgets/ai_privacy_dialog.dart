@@ -6,8 +6,7 @@ Future<bool?> showAiPrivacyDialog(BuildContext context) {
     builder: (context) => AlertDialog(
       title: const Text('AI 形象生成说明'),
       content: const Text(
-        '我们会根据你上传的宠物照片生成一个陪伴形象。当前版本仅为原型演示，不会真实上传图片。'
-        '未来接入 AI 服务时，会在获得你的同意后再处理图片。',
+        '我们会根据你上传的伙伴照片生成一个陪伴形象。需要联网处理图片时，会在获得你的同意后再上传。',
       ),
       actions: [
         TextButton(

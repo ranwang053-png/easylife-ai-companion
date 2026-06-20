@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:speech_to_text/speech_to_text.dart';
 
 import '../models/app_models.dart';
 import '../services/agent_service.dart';
@@ -7,6 +8,7 @@ import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/companion_pet.dart';
 import '../widgets/page_header.dart';
+import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 
 class CompanionPage extends StatefulWidget {
@@ -32,16 +34,18 @@ class CompanionPage extends StatefulWidget {
 class CompanionPageState extends State<CompanionPage> {
   final _controller = TextEditingController();
   final _inputFocusNode = FocusNode();
+  final _speech = SpeechToText();
   final List<PetMoodLog> _history = [];
+  final List<_ConversationTurn> _conversation = [];
 
   EmotionInsight? _insight;
-  var _petStatus = '陪伴中';
-  var _lastMoodText = '';
+  var _petStatus = '平静';
   var _isAnalyzing = false;
   var _isRecorded = false;
   var _isLoadingHistory = true;
-
-  static const _petStatuses = ['开心', '疲惫', '陪伴中', '安静听你说'];
+  var _speechInitialized = false;
+  var _isListening = false;
+  var _speechPrefix = '';
 
   @override
   void initState() {
@@ -57,12 +61,16 @@ class CompanionPageState extends State<CompanionPage> {
       _history
         ..clear()
         ..addAll(history);
+      _petStatus = _companionStatusForLatestLog(
+        history.isEmpty ? null : history.first,
+      );
       _isLoadingHistory = false;
     });
   }
 
   @override
   void dispose() {
+    _speech.cancel();
     _controller.dispose();
     _inputFocusNode.dispose();
     super.dispose();
@@ -72,47 +80,162 @@ class CompanionPageState extends State<CompanionPage> {
     _inputFocusNode.requestFocus();
   }
 
-  Future<void> _analyzeMood() async {
+  Future<void> _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isAnalyzing) return;
 
+    _controller.clear();
     setState(() {
+      _conversation.add(_ConversationTurn.user(text));
       _isAnalyzing = true;
-      _petStatus = '安静听你说';
       _isRecorded = false;
+      _petStatus = '专注';
     });
     final profile = await widget.userProfileService.loadProfile();
-    final insight = await widget.agentService.analyzeEmotion(text, profile);
+    final conversationText = _conversation
+        .where((turn) => turn.isUser)
+        .map((turn) => turn.text)
+        .join('\n');
+    final insight = await widget.agentService.analyzeEmotion(
+      conversationText,
+      profile,
+    );
     if (!mounted) return;
     setState(() {
       _insight = insight;
-      _lastMoodText = text;
-      _petStatus = insight.petStatus;
+      _conversation.add(_ConversationTurn.companion(insight.petReply));
+      _petStatus = _companionStatusForEmotion(insight.label);
       _isAnalyzing = false;
     });
   }
 
   Future<void> _recordMood() async {
     final insight = _insight;
-    if (insight == null || _lastMoodText.isEmpty || _isRecorded) return;
+    final userMessages =
+        _conversation.where((turn) => turn.isUser).map((turn) => turn.text);
+    if (insight == null || userMessages.isEmpty || _isRecorded) return;
+    final profile = await widget.userProfileService.loadProfile();
+    if (!mounted) return;
+    final conversationSummary = userMessages.join('；');
+    final memory = '${insight.allLabels.join('、')}：$conversationSummary';
+    final memories = [...profile.memoryNotes, memory];
+    final trimmedMemories = memories.length > 12
+        ? memories.sublist(memories.length - 12)
+        : memories;
     final entry = PetMoodLog(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       time: DateTime.now(),
-      userText: _lastMoodText,
+      userText: conversationSummary,
       emotionLabel: insight.label,
+      emotionLabels: insight.allLabels,
       emotionScore: insight.intensity / 100,
       petReply: insight.petReply,
       suggestion: insight.petSuggestion,
     );
     setState(() {
       _history.insert(0, entry);
+      _petStatus = _companionStatusForLatestLog(entry);
       _isRecorded = true;
     });
-    await widget.journalRepository.saveMoodLogs(_history);
+    await Future.wait([
+      widget.journalRepository.saveMoodLogs(_history),
+      widget.userProfileService.saveProfile(
+        profile.copyWith(memoryNotes: trimmedMemories),
+      ),
+    ]);
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('已记录到情绪日记')));
+    ).showSnackBar(const SnackBar(content: Text('本轮对话已整理到情绪日记')));
+  }
+
+  String _companionStatusForEmotion(String emotion) {
+    return switch (emotion) {
+      '开心' => '雀跃',
+      '疲惫' => '担忧',
+      '低落' || '难过' => '心疼',
+      '焦虑' || '紧张' => '牵挂',
+      _ => '安心',
+    };
+  }
+
+  String _companionStatusForLatestLog(PetMoodLog? entry) {
+    if (entry == null ||
+        DateTime.now().difference(entry.time) > const Duration(days: 3)) {
+      return '期待';
+    }
+    return switch (entry.emotionLabel) {
+      '开心' => '雀跃',
+      '疲惫' => '担忧',
+      '低落' || '难过' => '心疼',
+      '焦虑' || '紧张' => '牵挂',
+      _ => '安心',
+    };
+  }
+
+  Future<void> _toggleSpeechInput() async {
+    if (_isListening) {
+      await _speech.stop();
+      if (!mounted) return;
+      setState(() => _isListening = false);
+      return;
+    }
+
+    try {
+      if (!_speechInitialized) {
+        _speechInitialized = await _speech.initialize(
+          onStatus: (status) {
+            if (!mounted || (status != 'done' && status != 'notListening')) {
+              return;
+            }
+            setState(() => _isListening = false);
+          },
+          onError: (error) {
+            if (!mounted) return;
+            setState(() => _isListening = false);
+            _showPlaceholder(
+              error.permanent ? '无法使用语音输入，请在系统设置中开启麦克风与语音识别权限' : '没有听清，请再试一次',
+            );
+          },
+        );
+      }
+      if (!_speechInitialized) {
+        _showPlaceholder('当前设备暂不支持语音识别');
+        return;
+      }
+
+      _speechPrefix = _controller.text.trim();
+      await _speech.listen(
+        onResult: (result) {
+          if (!mounted) return;
+          final recognized = result.recognizedWords.trim();
+          final text = [
+            if (_speechPrefix.isNotEmpty) _speechPrefix,
+            if (recognized.isNotEmpty) recognized,
+          ].join('，');
+          _controller.value = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: text.length),
+          );
+          setState(() {});
+        },
+        listenOptions: SpeechListenOptions(
+          localeId: 'zh_CN',
+          listenMode: ListenMode.dictation,
+          partialResults: true,
+          cancelOnError: true,
+          autoPunctuation: true,
+          pauseFor: const Duration(seconds: 4),
+          listenFor: const Duration(minutes: 1),
+        ),
+      );
+      if (!mounted) return;
+      setState(() => _isListening = _speech.isListening);
+    } on Exception {
+      if (!mounted) return;
+      setState(() => _isListening = false);
+      _showPlaceholder('语音输入启动失败，请检查麦克风权限后重试');
+    }
   }
 
   void _showPlaceholder(String message) {
@@ -158,13 +281,13 @@ class CompanionPageState extends State<CompanionPage> {
         ? '$petName正在认真听，也在帮你整理这份感受…'
         : _insight == null
             ? '今天过得怎么样？开心或疲惫，都可以告诉$petName。'
-            : '$petName想对你说：${_insight!.petReply}';
+            : '我在这里。你可以继续说，我们慢慢把这件事聊清楚。';
 
     return SafeArea(
       bottom: false,
-      child: ListView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 126),
+      child: ResponsivePageList(
+        maxWidth: 820,
+        bottom: ResponsivePage.isWide(context) ? 40 : 126,
         children: [
           PageHeader(
             title: '陪伴',
@@ -178,13 +301,16 @@ class CompanionPageState extends State<CompanionPage> {
             reply: petReply,
             onCreatePetProfile: widget.onCreatePetProfile,
           ),
-          const SizedBox(height: 12),
-          _PetStatusStrip(
-            statuses: _petStatuses,
-            selected: _petStatus,
-          ),
           const SizedBox(height: 22),
-          const SectionTitle('写下此刻的心情'),
+          if (_conversation.isNotEmpty) ...[
+            _ConversationThread(
+              turns: _conversation,
+              petName: petName,
+              isReplying: _isAnalyzing,
+            ),
+            const SizedBox(height: 22),
+          ],
+          const SectionTitle('和伙伴聊聊'),
           const SizedBox(height: 10),
           SoftCard(
             child: Column(
@@ -206,25 +332,38 @@ class CompanionPageState extends State<CompanionPage> {
                     suffixIcon: Padding(
                       padding: const EdgeInsets.only(bottom: 58),
                       child: IconButton(
-                        tooltip: '语音输入',
-                        onPressed: () => _showPlaceholder('语音输入将在后续版本接入'),
-                        icon: const Icon(Icons.mic_none_rounded),
+                        tooltip: _isListening ? '结束语音输入' : '语音输入',
+                        onPressed: _toggleSpeechInput,
+                        color: _isListening ? AppColors.accent : null,
+                        icon: Icon(
+                          _isListening
+                              ? Icons.stop_circle_outlined
+                              : Icons.mic_none_rounded,
+                        ),
                       ),
                     ),
                   ),
                 ),
+                if (_isListening) ...[
+                  const SizedBox(height: 8),
+                  const Row(
+                    children: [
+                      SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 8),
+                      Text('正在聆听，语音会先转成文字再发送'),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: FilledButton.icon(
-                    onPressed: _isAnalyzing ? null : _analyzeMood,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.ink,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
+                    onPressed: _isAnalyzing ? null : _sendMessage,
                     icon: _isAnalyzing
                         ? const SizedBox.square(
                             dimension: 17,
@@ -233,9 +372,9 @@ class CompanionPageState extends State<CompanionPage> {
                               color: Colors.white,
                             ),
                           )
-                        : const Icon(Icons.auto_awesome_rounded),
+                        : const Icon(Icons.send_rounded),
                     label: Text(
-                      _isAnalyzing ? '$petName正在感受…' : '分析我的情绪',
+                      _isAnalyzing ? '$petName正在回复…' : '发送',
                     ),
                   ),
                 ),
@@ -271,6 +410,91 @@ class CompanionPageState extends State<CompanionPage> {
   }
 }
 
+class _ConversationTurn {
+  const _ConversationTurn({
+    required this.text,
+    required this.isUser,
+  });
+
+  factory _ConversationTurn.user(String text) =>
+      _ConversationTurn(text: text, isUser: true);
+
+  factory _ConversationTurn.companion(String text) =>
+      _ConversationTurn(text: text, isUser: false);
+
+  final String text;
+  final bool isUser;
+}
+
+class _ConversationThread extends StatelessWidget {
+  const _ConversationThread({
+    required this.turns,
+    required this.petName,
+    required this.isReplying,
+  });
+
+  final List<_ConversationTurn> turns;
+  final String petName;
+  final bool isReplying;
+
+  @override
+  Widget build(BuildContext context) {
+    return SoftCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text('本轮对话', style: Theme.of(context).textTheme.titleMedium),
+              const Spacer(),
+              Text(
+                '${turns.where((turn) => turn.isUser).length} 轮',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          for (final turn in turns) ...[
+            Align(
+              alignment:
+                  turn.isUser ? Alignment.centerRight : Alignment.centerLeft,
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 590),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                decoration: BoxDecoration(
+                  color:
+                      turn.isUser ? AppColors.primaryDark : AppColors.softGreen,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Text(
+                  turn.text,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: turn.isUser ? Colors.white : AppColors.ink,
+                        height: 1.55,
+                      ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 9),
+          ],
+          if (isReplying)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                '$petName正在回复…',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: AppColors.secondaryInk,
+                    ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _PetPanel extends StatelessWidget {
   const _PetPanel({
     required this.petName,
@@ -289,8 +513,8 @@ class _PetPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoftCard(
-      color: const Color(0xFFFFF7FA),
-      borderColor: const Color(0xFFF1D9E2),
+      color: AppColors.primaryMist,
+      borderColor: AppColors.outlineSoft,
       child: Row(
         children: [
           const CompanionPet(size: 132),
@@ -312,13 +536,13 @@ class _PetPanel extends StatelessWidget {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.softPurple,
+                        color: AppColors.surface.withValues(alpha: .88),
                         borderRadius: BorderRadius.circular(99),
                       ),
                       child: Text(
                         status,
                         style: const TextStyle(
-                          color: Color(0xFF7156A8),
+                          color: AppColors.primaryDark,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
@@ -329,9 +553,9 @@ class _PetPanel extends StatelessWidget {
                 const SizedBox(height: 10),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.only(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface.withValues(alpha: .92),
+                    borderRadius: const BorderRadius.only(
                       topLeft: Radius.circular(5),
                       topRight: Radius.circular(16),
                       bottomLeft: Radius.circular(16),
@@ -350,53 +574,13 @@ class _PetPanel extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: onCreatePetProfile,
                     icon: const Icon(Icons.pets_outlined, size: 17),
-                    label: const Text('创建宠物档案'),
+                    label: const Text('创建伙伴档案'),
                   ),
                 ],
               ],
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _PetStatusStrip extends StatelessWidget {
-  const _PetStatusStrip({required this.statuses, required this.selected});
-
-  final List<String> statuses;
-  final String selected;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 34,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: statuses.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 7),
-        itemBuilder: (context, index) {
-          final status = statuses[index];
-          final active = status == selected;
-          return Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: active ? AppColors.ink : Colors.white,
-              borderRadius: BorderRadius.circular(99),
-              border: Border.all(
-                color: active ? AppColors.ink : AppColors.outline,
-              ),
-            ),
-            child: Text(
-              status,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: active ? Colors.white : AppColors.secondaryInk,
-                    fontSize: 10,
-                  ),
-            ),
-          );
-        },
       ),
     );
   }
@@ -410,28 +594,41 @@ class _EmotionInsightCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoftCard(
-      color: const Color(0xFFF7F5FC),
-      borderColor: const Color(0xFFE3DCF2),
+      color: AppColors.primaryMist,
+      borderColor: AppColors.outlineSoft,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('情绪洞察', style: Theme.of(context).textTheme.titleMedium),
-              const Spacer(),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.softPurple,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-                child: Text(
-                  insight.label,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final label in insight.allLabels)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface.withValues(alpha: .9),
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -447,8 +644,8 @@ class _EmotionInsightCard extends StatelessWidget {
                   child: LinearProgressIndicator(
                     value: insight.intensity / 100,
                     minHeight: 9,
-                    backgroundColor: Colors.white,
-                    color: const Color(0xFF9A7AD1),
+                    backgroundColor: AppColors.surface,
+                    color: AppColors.primary,
                   ),
                 ),
               ),
@@ -468,7 +665,7 @@ class _EmotionInsightCard extends StatelessWidget {
           const SizedBox(height: 13),
           _InsightRow(
             icon: Icons.favorite_outline_rounded,
-            title: '桌宠建议',
+            title: '伙伴建议',
             content: insight.petSuggestion,
           ),
         ],
@@ -497,7 +694,7 @@ class _InsightRow extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: const BoxDecoration(
-            color: Colors.white,
+            color: AppColors.surface,
             shape: BoxShape.circle,
           ),
           child: Icon(icon, size: 18),
@@ -536,8 +733,8 @@ class _ComfortCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoftCard(
-      color: const Color(0xFFFFFBF3),
-      borderColor: const Color(0xFFF0E4C9),
+      color: AppColors.cream,
+      borderColor: AppColors.outlineSoft,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -575,13 +772,10 @@ class _ComfortCard extends StatelessWidget {
             width: double.infinity,
             child: FilledButton.icon(
               onPressed: isRecorded ? null : onRecord,
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFF8A70BF),
-              ),
               icon: Icon(
                 isRecorded ? Icons.check_rounded : Icons.edit_note_rounded,
               ),
-              label: Text(isRecorded ? '已记录到情绪日记' : '记录到情绪日记'),
+              label: Text(isRecorded ? '本轮对话已整理' : '整理为情绪日记'),
             ),
           ),
         ],
@@ -625,18 +819,31 @@ class _JournalCard extends StatelessWidget {
             children: [
               Text(_timeText, style: Theme.of(context).textTheme.labelMedium),
               const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.mistBlue,
-                  borderRadius: BorderRadius.circular(99),
-                ),
-                child: Text(
-                  entry.emotionLabel,
-                  style: const TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                  ),
+              Flexible(
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 5,
+                  runSpacing: 5,
+                  children: [
+                    for (final label in entry.allEmotionLabels)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.softGreen,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -653,16 +860,16 @@ class _JournalCard extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
-              color: const Color(0xFFFFF7FA),
-              borderRadius: BorderRadius.circular(14),
+              color: AppColors.primaryMist,
+              borderRadius: BorderRadius.circular(18),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Icon(
-                  Icons.smart_toy_outlined,
+                  Icons.favorite_outline_rounded,
                   size: 18,
-                  color: Color(0xFF8064B8),
+                  color: AppColors.primaryDark,
                 ),
                 const SizedBox(width: 8),
                 Expanded(

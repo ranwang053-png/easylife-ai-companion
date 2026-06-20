@@ -1,0 +1,21 @@
+{
+  "text": "今天工作很多，我有点累，也担心做得不够好。",
+  "context": {
+    "nickname": "小满",
+    "goals": [
+      "规律作息"
+    ],
+    "personalTags": [
+      "工作压力较高"
+    ],
+    "memoryNotes": [
+      "疲惫、压力：连续加班后很累"
+    ],
+    "petReminderStyle": "轻提醒"
+  },
+  "client": {
+    "platform": "ios",
+    "appVersion": "0.2.0+2",
+    "locale": "zh-CN"
+  }
+}

@@ -25,6 +25,9 @@ class MockUserProfileService implements UserProfileService {
     foodRestrictions: '不吃香菜，乳糖摄入适量',
     targetWeight: 48,
     petReminderStyle: '轻提醒',
+    birthPlace: '上海',
+    currentResidence: '上海',
+    personalTags: const ['工作狂', '咖啡爱好者'],
   );
 
   static UserProfile get currentProfile => _profile;

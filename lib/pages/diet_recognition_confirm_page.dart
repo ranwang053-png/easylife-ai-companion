@@ -4,6 +4,7 @@ import '../models/app_models.dart';
 import '../services/agent_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 import 'food_sticker_editor_page.dart';
 
@@ -125,18 +126,20 @@ class _DietRecognitionConfirmPageState
     return Scaffold(
       backgroundColor: AppColors.canvas,
       appBar: AppBar(title: const Text('确认识别结果')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+      body: ResponsivePageList(
+        maxWidth: 720,
+        top: 12,
+        bottom: 30,
         children: [
           SoftCard(
-            color: const Color(0xFFFFFBF3),
-            borderColor: const Color(0xFFF0E4C9),
+            color: AppColors.primaryMist,
+            borderColor: AppColors.outlineSoft,
             child: Column(
               children: [
                 Container(
                   height: 150,
                   decoration: BoxDecoration(
-                    color: AppColors.softYellow,
+                    color: AppColors.champagneSoft,
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Center(
@@ -154,7 +157,7 @@ class _DietRecognitionConfirmPageState
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 Text(
-                  'Mock 识别置信度 ${(_estimate.confidence * 100).round()}%',
+                  '识别置信度 ${(_estimate.confidence * 100).round()}%',
                   style: Theme.of(context).textTheme.labelMedium,
                 ),
               ],
@@ -234,7 +237,6 @@ class _DietRecognitionConfirmPageState
             height: 52,
             child: FilledButton(
               onPressed: _confirm,
-              style: FilledButton.styleFrom(backgroundColor: AppColors.ink),
               child: const Text('确认，制作贴纸'),
             ),
           ),

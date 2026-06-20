@@ -6,7 +6,7 @@ class SoftCard extends StatelessWidget {
   const SoftCard({
     required this.child,
     super.key,
-    this.padding = const EdgeInsets.all(18),
+    this.padding = const EdgeInsets.all(20),
     this.color = AppColors.surface,
     this.borderColor = AppColors.outline,
     this.onTap,
@@ -22,14 +22,18 @@ class SoftCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: color,
+      elevation: 1.2,
+      shadowColor: AppColors.primaryDark.withValues(alpha: .08),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: borderColor),
+        borderRadius: BorderRadius.circular(28),
+        side: BorderSide(color: borderColor.withValues(alpha: .72)),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
+        splashColor: AppColors.primarySoft.withValues(alpha: .4),
+        highlightColor: AppColors.primaryMist.withValues(alpha: .5),
+        borderRadius: BorderRadius.circular(28),
         child: Padding(padding: padding, child: child),
       ),
     );

@@ -35,9 +35,10 @@ class QuickActionFab extends StatelessWidget {
             child: FloatingActionButton(
               heroTag: 'dashboard_add',
               onPressed: onToggle,
-              backgroundColor: AppColors.ink,
+              backgroundColor: AppColors.primaryDark,
               foregroundColor: Colors.white,
-              elevation: 5,
+              elevation: 2,
+              highlightElevation: 1,
               shape: const CircleBorder(),
               child: AnimatedRotation(
                 turns: isOpen ? .125 : 0,
@@ -94,8 +95,8 @@ class _ActionBubble extends StatelessWidget {
       children: [
         Material(
           color: action.color,
-          elevation: 4,
-          shadowColor: Colors.black12,
+          elevation: 2,
+          shadowColor: AppColors.primaryDark.withValues(alpha: .1),
           shape: const CircleBorder(),
           child: InkWell(
             customBorder: const CircleBorder(),

@@ -1,0 +1,51 @@
+{
+  "results": [
+    {
+      "mutationId": "4e2576f0-2dae-445f-8f7c-bccec87b97b4",
+      "entityType": "emotionEntry",
+      "entityId": "1466e202-579e-47e3-833f-051e1cc591b1",
+      "status": "applied",
+      "entity": {
+        "id": "1466e202-579e-47e3-833f-051e1cc591b1",
+        "createdAt": "2026-06-15T08:00:01Z",
+        "updatedAt": "2026-06-15T08:00:01Z",
+        "version": 1,
+        "deletedAt": null,
+        "entityType": "emotionEntry",
+        "payload": {
+          "occurredAt": "2026-06-15T08:00:00Z",
+          "userText": "今天工作很多，我有点累。",
+          "emotionLabel": "疲惫",
+          "emotionLabels": [
+            "疲惫",
+            "压力"
+          ],
+          "emotionScore": 0.72,
+          "petReply": "听起来你已经撑了很久，我们先慢一点。",
+          "suggestion": "先缩减今晚必须完成的任务。"
+        }
+      },
+      "error": null
+    },
+    {
+      "mutationId": "9862cd17-8160-4be5-bd19-d3e73014d970",
+      "entityType": "memoryNote",
+      "entityId": "15f4a054-b480-45d8-b9f3-32151f8818b2",
+      "status": "applied",
+      "entity": {
+        "id": "15f4a054-b480-45d8-b9f3-32151f8818b2",
+        "createdAt": "2026-06-15T08:00:01Z",
+        "updatedAt": "2026-06-15T08:00:01Z",
+        "version": 1,
+        "deletedAt": null,
+        "entityType": "memoryNote",
+        "payload": {
+          "content": "疲惫、压力：连续工作后很累",
+          "sourceEmotionEntryId": "1466e202-579e-47e3-833f-051e1cc591b1"
+        }
+      },
+      "error": null
+    }
+  ],
+  "serverTime": "2026-06-15T08:00:01Z"
+}

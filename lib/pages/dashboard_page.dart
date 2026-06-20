@@ -5,7 +5,9 @@ import '../models/pet_profile.dart';
 import '../services/agent_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/fortune_icon_resolver.dart';
 import '../widgets/companion_pet.dart';
+import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -54,25 +56,58 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget build(BuildContext context) {
     return SafeArea(
       bottom: false,
-      child: ListView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 150),
-        children: [
-          _Header(onOpenSettings: widget.onOpenSettings),
-          const SizedBox(height: 18),
-          _PetCompanionCard(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final split = constraints.maxWidth >= 760;
+          final bottom = constraints.maxWidth >= 900 ? 40.0 : 148.0;
+          final companion = _PetCompanionCard(
             profile: widget.petProfile,
             quote: _petReply ?? '今天也可以慢一点，我会陪你照顾好自己。',
             controller: _messageController,
             onSend: _sendMessage,
             onOpenPetProfile: widget.onOpenPetProfile,
             onOpenCompanion: () => widget.onOpenModule('桌宠陪伴'),
-          ),
-          const SizedBox(height: 12),
-          const _DailyFortuneCard(),
-          const SizedBox(height: 12),
-          const _ProgressCard(),
-        ],
+          );
+
+          return SingleChildScrollView(
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.only(top: 12, bottom: bottom),
+            child: ResponsivePage(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _Header(onOpenSettings: widget.onOpenSettings),
+                  const SizedBox(height: 22),
+                  if (split)
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 6, child: companion),
+                        const SizedBox(width: 18),
+                        const Expanded(
+                          flex: 5,
+                          child: Column(
+                            children: [
+                              _DailyFortuneCard(),
+                              SizedBox(height: 16),
+                              _ProgressCard(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  else ...[
+                    companion,
+                    const SizedBox(height: 14),
+                    const _DailyFortuneCard(),
+                    const SizedBox(height: 14),
+                    const _ProgressCard(),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -108,7 +143,10 @@ class _Header extends StatelessWidget {
         IconButton.filledTonal(
           onPressed: onOpenSettings,
           tooltip: '设置',
-          style: IconButton.styleFrom(backgroundColor: Colors.white),
+          style: IconButton.styleFrom(
+            backgroundColor: AppColors.primaryMist,
+            foregroundColor: AppColors.primaryDark,
+          ),
           icon: const Icon(Icons.settings_outlined, size: 22),
         ),
       ],
@@ -137,48 +175,101 @@ class _PetCompanionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final petName = profile?.name ?? '你的陪伴伙伴';
     return SoftCard(
-      color: const Color(0xFFFFF7FA),
-      borderColor: const Color(0xFFF0DCE3),
+      padding: const EdgeInsets.fromLTRB(22, 22, 22, 18),
+      color: AppColors.primaryMist,
+      borderColor: AppColors.outlineSoft,
       child: Column(
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const CompanionPet(size: 112),
-              const SizedBox(width: 14),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      petName,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      quote,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: AppColors.ink,
-                            height: 1.5,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 172),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface.withValues(alpha: .86),
+                          borderRadius:
+                              const BorderRadius.all(Radius.circular(99)),
+                        ),
+                        child: const Text(
+                          '今天也在这里',
+                          style: TextStyle(
+                            color: AppColors.primaryDark,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
                           ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                        petName,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 380),
+                        child: Text(
+                          quote,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: AppColors.ink,
+                                    height: 1.5,
+                                  ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              SizedBox(
+                width: ResponsivePage.isMedium(context) ? 160 : 132,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CompanionPet(
+                      size: ResponsivePage.isMedium(context) ? 150 : 124,
                     ),
-                    const SizedBox(height: 10),
-                    TextButton(
-                      onPressed:
-                          profile == null ? onOpenPetProfile : onOpenCompanion,
-                      child: Text(profile == null ? '创建宠物档案' : '进入陪伴'),
+                    const SizedBox(height: 6),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: profile == null
+                            ? onOpenPetProfile
+                            : onOpenCompanion,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size.fromHeight(38),
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          backgroundColor:
+                              AppColors.surface.withValues(alpha: .75),
+                        ),
+                        child: Text(
+                          profile == null ? '创建伙伴档案' : '进入陪伴',
+                          maxLines: 1,
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           TextField(
             controller: controller,
             textInputAction: TextInputAction.send,
             onSubmitted: (_) => onSend(),
             decoration: InputDecoration(
               hintText: '和我说说今天的心情吧...',
+              fillColor: AppColors.surface.withValues(alpha: .92),
               suffixIcon: IconButton(
                 tooltip: '发送',
                 onPressed: onSend,
@@ -199,8 +290,7 @@ class _DailyFortuneCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final fortune = DashboardMock.fortune;
     return SoftCard(
-      color: const Color(0xFFFFFBF0),
-      borderColor: const Color(0xFFF1E2B8),
+      color: AppColors.surface,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -210,10 +300,14 @@ class _DailyFortuneCard extends StatelessWidget {
                 width: 38,
                 height: 38,
                 decoration: const BoxDecoration(
-                  color: AppColors.softYellow,
+                  color: AppColors.champagneSoft,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.wb_sunny_outlined, size: 21),
+                child: const Icon(
+                  Icons.wb_sunny_outlined,
+                  size: 21,
+                  color: AppColors.champagne,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -234,7 +328,7 @@ class _DailyFortuneCard extends StatelessWidget {
                     fortune.overall,
                     semanticsLabel: '整体运势四星',
                     style: const TextStyle(
-                      color: Color(0xFFE2A93B),
+                      color: AppColors.champagne,
                       fontSize: 17,
                       letterSpacing: 1,
                     ),
@@ -254,20 +348,18 @@ class _DailyFortuneCard extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: _FortuneItem(
-                            icon: Icons.palette_outlined,
+                          child: _FortuneInfoItem(
+                            type: FortuneIconTypes.color,
                             label: '幸运色',
                             value: fortune.luckyColor,
-                            color: const Color(0xFF7898B8),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: _FortuneItem(
-                            icon: Icons.restaurant_outlined,
+                          child: _FortuneInfoItem(
+                            type: FortuneIconTypes.food,
                             label: '幸运食物',
                             value: fortune.luckyFood,
-                            color: const Color(0xFFE89999),
                           ),
                         ),
                       ],
@@ -276,20 +368,18 @@ class _DailyFortuneCard extends StatelessWidget {
                     Row(
                       children: [
                         Expanded(
-                          child: _FortuneItem(
-                            icon: Icons.tag_rounded,
+                          child: _FortuneInfoItem(
+                            type: FortuneIconTypes.number,
                             label: '幸运数字',
                             value: fortune.luckyNumber,
-                            color: const Color(0xFF8B7CC1),
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: _FortuneItem(
-                            icon: Icons.local_florist_outlined,
+                          child: _FortuneInfoItem(
+                            type: FortuneIconTypes.flower,
                             label: '幸运花',
                             value: fortune.luckyFlower,
-                            color: const Color(0xFF71A67D),
                           ),
                         ),
                       ],
@@ -301,7 +391,7 @@ class _DailyFortuneCard extends StatelessWidget {
               Container(
                 width: 1,
                 height: 116,
-                color: const Color(0xFFE7D9B5),
+                color: AppColors.outline,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -320,16 +410,16 @@ class _DailyFortuneCard extends StatelessWidget {
             icon: Icons.lightbulb_outline_rounded,
             label: '建议',
             text: fortune.suggestion,
-            color: const Color(0xFF5E8D6A),
-            backgroundColor: const Color(0xFFEAF4E9),
+            color: AppColors.primaryDark,
+            backgroundColor: AppColors.primaryMist,
           ),
           const SizedBox(height: 10),
           _FortuneAdvice(
             icon: Icons.do_not_disturb_alt_outlined,
             label: '避免',
             text: fortune.avoid,
-            color: const Color(0xFFB66A6A),
-            backgroundColor: const Color(0xFFFBECEC),
+            color: AppColors.secondaryInk,
+            backgroundColor: AppColors.cream,
           ),
         ],
       ),
@@ -357,23 +447,44 @@ class _FortuneScoreChart extends StatelessWidget {
       children: [
         Text('运势分数', style: Theme.of(context).textTheme.labelMedium),
         const SizedBox(height: 8),
-        _FortuneScoreBar(label: '事业', score: career),
+        _FortuneScoreBar(
+          label: '事业',
+          score: career,
+          color: AppColors.primary,
+        ),
         const SizedBox(height: 7),
-        _FortuneScoreBar(label: '财富', score: wealth),
+        _FortuneScoreBar(
+          label: '财富',
+          score: wealth,
+          color: AppColors.champagne,
+        ),
         const SizedBox(height: 7),
-        _FortuneScoreBar(label: '爱情', score: love),
+        _FortuneScoreBar(
+          label: '爱情',
+          score: love,
+          color: const Color(0xFF91BCAA),
+        ),
         const SizedBox(height: 7),
-        _FortuneScoreBar(label: '人际', score: social),
+        _FortuneScoreBar(
+          label: '人际',
+          score: social,
+          color: const Color(0xFF5F9B88),
+        ),
       ],
     );
   }
 }
 
 class _FortuneScoreBar extends StatelessWidget {
-  const _FortuneScoreBar({required this.label, required this.score});
+  const _FortuneScoreBar({
+    required this.label,
+    required this.score,
+    required this.color,
+  });
 
   final String label;
   final int score;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
@@ -396,8 +507,8 @@ class _FortuneScoreBar extends StatelessWidget {
             child: LinearProgressIndicator(
               value: score / 100,
               minHeight: 6,
-              backgroundColor: const Color(0xFFEDE6D4),
-              valueColor: const AlwaysStoppedAnimation(Color(0xFFD6A94E)),
+              backgroundColor: color.withValues(alpha: .16),
+              valueColor: AlwaysStoppedAnimation(color),
             ),
           ),
         ),
@@ -418,25 +529,35 @@ class _FortuneScoreBar extends StatelessWidget {
   }
 }
 
-class _FortuneItem extends StatelessWidget {
-  const _FortuneItem({
-    required this.icon,
+class _FortuneInfoItem extends StatelessWidget {
+  const _FortuneInfoItem({
+    required this.type,
     required this.label,
     required this.value,
-    required this.color,
   });
 
-  final IconData icon;
+  final String type;
   final String label;
   final String value;
-  final Color color;
 
   @override
   Widget build(BuildContext context) {
+    final iconPath = getFortuneIconPath(type: type, value: value);
     return Row(
       children: [
-        Icon(icon, size: 20, color: color),
-        const SizedBox(width: 8),
+        SizedBox(
+          width: 28,
+          height: 28,
+          child: Center(
+            child: type == FortuneIconTypes.number
+                ? _LuckyNumberIcon(value: value)
+                : _FortuneAssetIcon(
+                    iconPath: iconPath,
+                    fallback: _FortuneIconFallback(type: type),
+                  ),
+          ),
+        ),
+        const SizedBox(width: 9),
         Flexible(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -456,6 +577,96 @@ class _FortuneItem extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _FortuneAssetIcon extends StatelessWidget {
+  const _FortuneAssetIcon({
+    required this.iconPath,
+    required this.fallback,
+  });
+
+  final String? iconPath;
+  final Widget fallback;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = iconPath;
+    if (path == null) return fallback;
+    return Image.asset(
+      path,
+      width: 27,
+      height: 27,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.medium,
+      errorBuilder: (_, __, ___) => fallback,
+    );
+  }
+}
+
+class _FortuneIconFallback extends StatelessWidget {
+  const _FortuneIconFallback({required this.type});
+
+  final String type;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = switch (type) {
+      FortuneIconTypes.food => Icons.restaurant_outlined,
+      FortuneIconTypes.flower => Icons.local_florist_outlined,
+      FortuneIconTypes.color => Icons.palette_outlined,
+      _ => Icons.auto_awesome_rounded,
+    };
+    return Container(
+      width: 24,
+      height: 24,
+      decoration: const BoxDecoration(
+        color: AppColors.primaryMist,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        icon,
+        size: 15,
+        color: AppColors.primaryDark,
+      ),
+    );
+  }
+}
+
+class _LuckyNumberIcon extends StatelessWidget {
+  const _LuckyNumberIcon({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 23,
+      height: 23,
+      decoration: BoxDecoration(
+        color: AppColors.champagneSoft,
+        shape: BoxShape.circle,
+        border: Border.all(color: AppColors.champagne),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.champagne.withValues(alpha: .22),
+            offset: const Offset(0, 3),
+            blurRadius: 4,
+          ),
+        ],
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        value,
+        maxLines: 1,
+        style: const TextStyle(
+          color: AppColors.primaryDark,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
+      ),
     );
   }
 }
@@ -524,17 +735,22 @@ class _ProgressCard extends StatelessWidget {
           Text('今日状态', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
           for (final item in DashboardMock.progress)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 7),
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              decoration: BoxDecoration(
+                color: item.completed ? AppColors.primaryMist : AppColors.cream,
+                borderRadius: BorderRadius.circular(18),
+              ),
               child: Row(
                 children: [
-                  Icon(item.icon, color: item.color, size: 21),
+                  Icon(item.icon, color: AppColors.primary, size: 21),
                   const SizedBox(width: 10),
                   Expanded(child: Text(item.label)),
                   Text(
                     item.value,
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                          color: item.color,
+                          color: AppColors.primaryDark,
                         ),
                   ),
                 ],

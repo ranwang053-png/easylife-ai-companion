@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Easylife AI 能力矩阵填写表</title>
+  <style>
+    :root {
+      --canvas: #fbfdf9;
+      --card: #ffffff;
+      --mint: #dff8ef;
+      --mint-strong: #208c80;
+      --ink: #173c38;
+      --sub: #5f7772;
+      --line: #d8eee7;
+      --gold: #c7a45d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.6;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(251, 253, 249, 0.92);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid var(--line);
+      padding: 18px 24px;
+    }
+    h1, h2 { margin: 0; }
+    h1 { font-size: 28px; letter-spacing: -0.02em; }
+    h2 { margin-top: 28px; font-size: 22px; }
+    p { color: var(--sub); margin: 8px 0 0; }
+    main { max-width: 1180px; margin: 0 auto; padding: 24px; }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 14px;
+    }
+    button {
+      border: 1px solid var(--line);
+      background: var(--card);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 9px 16px;
+      font: inherit;
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--mint-strong);
+      border-color: var(--mint-strong);
+      color: white;
+      font-weight: 700;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 22px;
+      box-shadow: 0 12px 30px rgba(40, 112, 98, 0.08);
+      margin-bottom: 20px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    label {
+      display: block;
+      color: var(--sub);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #ffffff;
+      color: var(--ink);
+      font: inherit;
+      padding: 11px 13px;
+      outline-color: var(--mint-strong);
+    }
+    textarea { min-height: 74px; resize: vertical; }
+    table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      background: var(--card);
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      border-right: 1px solid var(--line);
+      padding: 10px;
+      vertical-align: top;
+      min-width: 150px;
+    }
+    th {
+      background: var(--mint);
+      text-align: left;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    tr:last-child td { border-bottom: 0; }
+    td:last-child, th:last-child { border-right: 0; }
+    td:first-child {
+      font-weight: 700;
+      min-width: 130px;
+      background: #f7fcf9;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 22px;
+    }
+    .note {
+      padding: 14px 16px;
+      background: #fff9e8;
+      border: 1px solid #ecd9a8;
+      border-radius: 18px;
+      color: #6a5525;
+    }
+    .saved {
+      color: var(--mint-strong);
+      font-weight: 700;
+      min-height: 24px;
+    }
+    @media (max-width: 760px) {
+      main { padding: 16px; }
+      header { padding: 16px; }
+      .grid { grid-template-columns: 1fr; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Easylife AI 能力矩阵填写表</h1>
+    <p>先填写决策，不急着接 API Key。内容会自动保存在当前浏览器本地。</p>
+    <div class="toolbar">
+      <button class="primary" onclick="saveAll()">保存填写内容</button>
+      <button onclick="exportMarkdown()">导出 Markdown</button>
+      <button onclick="clearAll()">清空本页填写</button>
+      <span id="saved" class="saved"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>全局决策</h2>
+      <div class="grid">
+        <div>
+          <label>首发必须接入的 AI 能力</label>
+          <textarea data-key="global.must"></textarea>
+        </div>
+        <div>
+          <label>可延后能力</label>
+          <textarea data-key="global.later"></textarea>
+        </div>
+        <div>
+          <label>优先供应商 / 不考虑供应商</label>
+          <textarea data-key="global.providers"></textarea>
+        </div>
+        <div>
+          <label>成本、延迟、地区限制</label>
+          <textarea data-key="global.limits"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>能力矩阵</h2>
+      <p class="note">建议先填“首发阶段、候选供应商、当前决策”。Provider 可以多选，不要求整个 App 只用一个供应商。</p>
+      <div class="table-wrap">
+        <table id="capability-table">
+          <thead>
+            <tr>
+              <th>能力</th>
+              <th>首发阶段</th>
+              <th>输入</th>
+              <th>输出</th>
+              <th>是否联网</th>
+              <th>是否保存</th>
+              <th>Provider 类型</th>
+              <th>候选供应商</th>
+              <th>成本等级</th>
+              <th>风险等级</th>
+              <th>当前决策</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>伙伴形象生成</h2>
+      <div class="grid">
+        <div>
+          <label>目标风格关键词</label>
+          <textarea data-key="image.style">干净轮廓、浅薄荷底座、克制陪伴感、温柔但不幼稚</textarea>
+        </div>
+        <div>
+          <label>禁忌风格</label>
+          <textarea data-key="image.avoid">明显腮红、贴纸化装饰、夸张表情、重阴影、儿童化</textarea>
+        </div>
+        <div>
+          <label>参考图路径 / 链接</label>
+          <textarea data-key="image.refs"></textarea>
+        </div>
+        <div>
+          <label>生成后保存规则</label>
+          <textarea data-key="image.save">用户确认后保存；未确认结果仅短期缓存。</textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>饮食 AI 拆分</h2>
+      <div class="grid">
+        <div>
+          <label>热量估算策略</label>
+          <textarea data-key="diet.calorie"></textarea>
+        </div>
+        <div>
+          <label>照片识别策略</label>
+          <textarea data-key="diet.vision"></textarea>
+        </div>
+        <div>
+          <label>联网搜索策略</label>
+          <textarea data-key="diet.search"></textarea>
+        </div>
+        <div>
+          <label>抠图 / 贴纸策略</label>
+          <textarea data-key="diet.segmentation"></textarea>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const rows = [
+      ['情绪分析', 'P0', '用户文本、有限长期记忆', '情绪标签、摘要、建议、伙伴回应', '否', '分析不保存；确认后保存', '文本大模型', '', '中', '高', ''],
+      ['长期记忆提炼', 'P0', '已确认情绪日记', '结构化记忆条目', '否', '确认后保存', '文本大模型', '', '低', '高', ''],
+      ['深呼吸引导', 'P1', '当前情绪状态、练习类型', '引导语、节奏参数', '否', '默认不保存', '规则 + 文本模型可选', '', '低', '中', 'API Key 前先做前端独立页面'],
+      ['轻音乐推荐', 'P1', '当前情绪状态、偏好', '音乐场景、播放清单或本地音频选择', '可选', '默认不保存', '规则 / 音频库 / 音乐生成可选', '', '低-高', '中', 'API Key 前先做前端独立页面'],
+      ['伙伴形象生成', 'P1', '图片、描述、风格参考', '伙伴头像或形象图', '是', '用户确认后保存', '图像生成模型', '', '高', '高', 'Prompt + 风格参考库'],
+      ['伙伴档案分析', 'P1', '网页链接、文档、用户描述', '性格摘要、陪伴方式、标签', '可选', '用户确认后保存', '文本模型 + 文档解析', '', '中', '高', ''],
+      ['饮食文字热量估算', 'P1', '食物描述、份量、时间', '食物项、热量、营养提示', '可选', '确认后保存', '文本模型 + 营养数据库', '', '中', '中', ''],
+      ['饮食照片识别', 'P1', '图片', '食物项、置信度、份量估计', '是', '确认后保存', '视觉模型', '', '中-高', '中', ''],
+      ['饮食联网搜索', 'P1/P2', '食物名、品牌、地区', '营养数据来源、热量范围', '是', '保存最终确认结果', 'Search Provider + 营养数据源', '', '中', '中', ''],
+      ['食物/照片抠图', 'P2', '图片', '透明背景 PNG / mask', '否/是', '确认后保存贴纸', '图像分割/背景移除', '', '中', '低', '独立 provider'],
+      ['今日运势生成', 'P2', '日期、用户偏好', '运势卡片内容', '否', '可缓存当天结果', '文本模型或规则', '', '低', '低', '当前保留固定卡片']
+    ];
+
+    function keyFor(row, col) {
+      return `matrix.${row}.${col}`;
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector('#capability-table tbody');
+      rows.forEach((row, rowIndex) => {
+        const tr = document.createElement('tr');
+        row.forEach((value, colIndex) => {
+          const td = document.createElement('td');
+          if (colIndex === 0) {
+            td.textContent = value;
+          } else {
+            const area = document.createElement('textarea');
+            area.value = value;
+            area.dataset.key = keyFor(rowIndex, colIndex);
+            area.style.minHeight = '58px';
+            td.appendChild(area);
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+
+    function loadAll() {
+      document.querySelectorAll('[data-key]').forEach((el) => {
+        const saved = localStorage.getItem(`easylife.ai.${el.dataset.key}`);
+        if (saved !== null) el.value = saved;
+      });
+    }
+
+    function saveAll() {
+      document.querySelectorAll('[data-key]').forEach((el) => {
+        localStorage.setItem(`easylife.ai.${el.dataset.key}`, el.value);
+      });
+      document.getElementById('saved').textContent = `已保存 ${new Date().toLocaleTimeString()}`;
+    }
+
+    function clearAll() {
+      if (!confirm('确定清空本页填写内容吗？')) return;
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith('easylife.ai.'))
+        .forEach((key) => localStorage.removeItem(key));
+      location.reload();
+    }
+
+    function exportMarkdown() {
+      saveAll();
+      const lines = ['# Easylife AI 能力矩阵填写结果', ''];
+      document.querySelectorAll('section').forEach((section) => {
+        const title = section.querySelector('h2')?.textContent;
+        if (!title) return;
+        lines.push(`## ${title}`, '');
+        section.querySelectorAll('[data-key]').forEach((el) => {
+          const label = el.closest('div')?.querySelector('label')?.textContent || el.dataset.key;
+          lines.push(`- ${label}：${el.value || '未填写'}`);
+        });
+        lines.push('');
+      });
+      navigator.clipboard?.writeText(lines.join('\n'));
+      document.getElementById('saved').textContent = '已导出到剪贴板';
+    }
+
+    renderTable();
+    loadAll();
+    document.addEventListener('input', (event) => {
+      if (event.target.matches('[data-key]')) saveAll();
+    });
+  </script>
+</body>
+</html>

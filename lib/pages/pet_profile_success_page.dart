@@ -31,7 +31,7 @@ class PetProfileSuccessPage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               Text(
-                '宠物档案已创建',
+                '伙伴档案已创建',
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 24),
@@ -61,7 +61,6 @@ class PetProfileSuccessPage extends StatelessWidget {
                     onCompleted(profile);
                     Navigator.of(context).popUntil((route) => route.isFirst);
                   },
-                  style: FilledButton.styleFrom(backgroundColor: AppColors.ink),
                   child: const Text('进入首页'),
                 ),
               ),

@@ -5,6 +5,7 @@ import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/companion_pet.dart';
 import '../widgets/page_header.dart';
+import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 
 class MyPage extends StatelessWidget {
@@ -32,8 +33,9 @@ class MyPage extends StatelessWidget {
         }
         return SafeArea(
           bottom: false,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 130),
+          child: ResponsivePageList(
+            maxWidth: 820,
+            bottom: ResponsivePage.isWide(context) ? 40 : 130,
             children: [
               PageHeader(
                 title: '我的',
@@ -46,10 +48,21 @@ class MyPage extends StatelessWidget {
               ),
               const SizedBox(height: 18),
               SoftCard(
+                color: AppColors.primaryMist,
+                borderColor: AppColors.outlineSoft,
                 child: Row(
                   children: [
-                    const CompanionPet(size: 76),
-                    const SizedBox(width: 14),
+                    Container(
+                      width: 84,
+                      height: 84,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .72),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: const CompanionPet(size: 72),
+                    ),
+                    const SizedBox(width: 16),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -58,11 +71,21 @@ class MyPage extends StatelessWidget {
                             profile.nickname,
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 5),
                           Text(
                             [profile.occupation, profile.mbti]
                                 .where((item) => item.isNotEmpty)
                                 .join(' · '),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                          const SizedBox(height: 10),
+                          const Text(
+                            '你的生活档案已在本机保存',
+                            style: TextStyle(
+                              color: AppColors.primaryDark,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
@@ -74,11 +97,26 @@ class MyPage extends StatelessWidget {
               const SectionTitle('长期记忆'),
               const SizedBox(height: 10),
               SoftCard(
-                color: const Color(0xFFFFF7FA),
-                borderColor: const Color(0xFFF0DCE3),
+                color: AppColors.cream,
+                borderColor: AppColors.outlineSoft,
                 onTap: onOpenSettings,
-                child: const Text(
-                  '你的基础信息和偏好会供 AgentService 用于饮食建议、情绪陪伴和桌宠互动。',
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(
+                      Icons.lock_outline_rounded,
+                      color: AppColors.champagne,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        profile.memoryNotes.isEmpty
+                            ? '你的基础信息和偏好会供 AgentService 用于饮食建议、情绪陪伴和伙伴互动。'
+                            : '已从情绪对话中整理 ${profile.memoryNotes.length} 条本地记忆，帮助伙伴理解你的近期状态。',
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded),
+                  ],
                 ),
               ),
               const SizedBox(height: 20),
@@ -90,7 +128,7 @@ class MyPage extends StatelessWidget {
                   children: [
                     _MyTile(
                       icon: Icons.pets_outlined,
-                      title: '宠物档案',
+                      title: '伙伴档案',
                       value: petProfile == null
                           ? '未创建'
                           : '${petProfile!.name} · 可修改',
@@ -109,7 +147,7 @@ class MyPage extends StatelessWidget {
                     _MyTile(
                       icon: Icons.tune_rounded,
                       title: '系统偏好',
-                      value: '提醒、目标与陪伴方式',
+                      value: '权限、通知、隐私与陪伴方式',
                       onTap: onOpenSettings,
                     ),
                   ],
@@ -141,8 +179,8 @@ class _MyTile extends StatelessWidget {
     return ListTile(
       onTap: onTap,
       leading: CircleAvatar(
-        backgroundColor: AppColors.mistBlue,
-        child: Icon(icon, color: AppColors.ink),
+        backgroundColor: AppColors.primarySoft,
+        child: Icon(icon, color: AppColors.primaryDark),
       ),
       title: Text(title),
       subtitle: Text(value, maxLines: 2, overflow: TextOverflow.ellipsis),

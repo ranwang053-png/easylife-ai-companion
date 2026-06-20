@@ -5,6 +5,7 @@ import '../services/agent_service.dart';
 import '../services/pet_profile_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/ai_privacy_dialog.dart';
+import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 import 'pet_generation_loading_page.dart';
 import 'pet_profile_form_page.dart';
@@ -59,9 +60,11 @@ class _PetPhotoUploadPageState extends State<PetPhotoUploadPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(title: const Text('上传宠物照片')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      appBar: AppBar(title: const Text('上传伙伴照片')),
+      body: ResponsivePageList(
+        maxWidth: 720,
+        top: 16,
+        bottom: 32,
         children: [
           Text('选择一张清晰照片', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 8),
@@ -71,8 +74,8 @@ class _PetPhotoUploadPageState extends State<PetPhotoUploadPage> {
           ),
           const SizedBox(height: 22),
           SoftCard(
-            color: const Color(0xFFFFF8FA),
-            borderColor: const Color(0xFFF0DCE3),
+            color: AppColors.primaryMist,
+            borderColor: AppColors.outlineSoft,
             child: SizedBox(
               height: 260,
               child: Center(
@@ -92,17 +95,17 @@ class _PetPhotoUploadPageState extends State<PetPhotoUploadPage> {
                             width: 150,
                             height: 150,
                             decoration: BoxDecoration(
-                              color: AppColors.softPurple,
+                              color: AppColors.softGreen,
                               borderRadius: BorderRadius.circular(30),
                             ),
                             child: const Icon(
                               Icons.pets_rounded,
                               size: 78,
-                              color: Color(0xFF7459A8),
+                              color: AppColors.primaryDark,
                             ),
                           ),
                           const SizedBox(height: 12),
-                          const Text('Mock 宠物照片已选择'),
+                          const Text('伙伴照片已选择'),
                         ],
                       ),
               ),
@@ -133,7 +136,6 @@ class _PetPhotoUploadPageState extends State<PetPhotoUploadPage> {
             height: 52,
             child: FilledButton(
               onPressed: _imagePath == null ? null : _continue,
-              style: FilledButton.styleFrom(backgroundColor: AppColors.ink),
               child: const Text('下一步'),
             ),
           ),

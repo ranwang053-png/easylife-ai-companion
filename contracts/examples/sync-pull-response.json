@@ -1,0 +1,16 @@
+{
+  "changes": [
+    {
+      "id": "1466e202-579e-47e3-833f-051e1cc591b1",
+      "createdAt": "2026-06-15T08:00:01Z",
+      "updatedAt": "2026-06-15T09:00:00Z",
+      "version": 2,
+      "deletedAt": "2026-06-15T09:00:00Z",
+      "entityType": "emotionEntry",
+      "payload": null
+    }
+  ],
+  "nextCursor": "eyJzZXF1ZW5jZSI6MTAwfQ",
+  "hasMore": false,
+  "serverTime": "2026-06-15T09:00:01Z"
+}

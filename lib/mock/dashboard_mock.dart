@@ -23,20 +23,20 @@ abstract final class DashboardMock {
       label: '体重记录',
       value: '已记录',
       icon: Icons.check_circle_rounded,
-      color: Color(0xFF48A865),
+      color: AppColors.primary,
       completed: true,
     ),
     DailyProgressItem(
       label: '饮食记录',
       value: '进行中',
       icon: Icons.restaurant_rounded,
-      color: Color(0xFFF2B84B),
+      color: AppColors.primary,
     ),
     DailyProgressItem(
       label: '心情记录',
       value: '待记录',
       icon: Icons.sentiment_satisfied_alt_rounded,
-      color: AppColors.softPurple,
+      color: AppColors.primary,
     ),
   ];
 
@@ -45,7 +45,7 @@ abstract final class DashboardMock {
       type: QuickActionType.mood,
       label: '记录心情',
       icon: Icons.sentiment_satisfied_alt_rounded,
-      color: AppColors.softPurple,
+      color: AppColors.softCoral,
     ),
     QuickAction(
       type: QuickActionType.meal,

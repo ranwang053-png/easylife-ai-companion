@@ -23,6 +23,7 @@ class AppShell extends StatefulWidget {
     required this.petProfileService,
     required this.userProfileService,
     required this.journalRepository,
+    required this.onLogout,
     super.key,
   });
 
@@ -30,6 +31,7 @@ class AppShell extends StatefulWidget {
   final PetProfileService petProfileService;
   final UserProfileService userProfileService;
   final JournalRepository journalRepository;
+  final Future<void> Function() onLogout;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -44,7 +46,7 @@ class _AppShellState extends State<AppShell> {
 
   static const _items = [
     (label: '首页', icon: Icons.home_rounded),
-    (label: '陪伴', icon: Icons.smart_toy_outlined),
+    (label: '陪伴', icon: Icons.favorite_outline_rounded),
     (label: '饮食', icon: Icons.restaurant_outlined),
     (label: '我的', icon: Icons.person_outline_rounded),
   ];
@@ -60,8 +62,8 @@ class _AppShellState extends State<AppShell> {
     if (mounted) setState(() => _petProfile = profile);
   }
 
-  void _openSettings() {
-    Navigator.of(
+  Future<void> _openSettings() async {
+    await Navigator.of(
       context,
     ).push(
       MaterialPageRoute<void>(
@@ -69,9 +71,12 @@ class _AppShellState extends State<AppShell> {
           agentService: widget.agentService,
           petProfileService: widget.petProfileService,
           userProfileService: widget.userProfileService,
+          onLogout: widget.onLogout,
         ),
       ),
     );
+    if (!mounted) return;
+    await _loadPetProfile();
   }
 
   void _openPetProfileFlow() {
@@ -165,37 +170,205 @@ class _AppShellState extends State<AppShell> {
         onOpenPetProfile: _openPetProfileFlow,
       ),
     ];
-    return Scaffold(
-      extendBody: true,
-      body: IndexedStack(index: _selectedIndex, children: pages),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: QuickActionFab(
-        isOpen: _quickActionsOpen,
-        actions: DashboardMock.quickActions,
-        onToggle: () {
-          setState(() => _quickActionsOpen = !_quickActionsOpen);
-        },
-        onAction: _handleQuickAction,
-      ),
-      bottomNavigationBar: NavigationBar(
-        height: 74,
-        selectedIndex: _selectedIndex,
-        backgroundColor: Colors.white.withValues(alpha: .96),
-        indicatorColor: AppColors.mistBlue,
-        destinations: [
-          for (final item in _items)
-            NavigationDestination(
-              icon: Icon(item.icon),
-              selectedIcon: Icon(item.icon, color: AppColors.ink),
-              label: item.label,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 900;
+        final content = IndexedStack(index: _selectedIndex, children: pages);
+
+        if (wide) {
+          return Scaffold(
+            body: Row(
+              children: [
+                _DesktopNavigation(
+                  selectedIndex: _selectedIndex,
+                  items: _items,
+                  onSelected: _selectPage,
+                  onQuickAction: _handleQuickAction,
+                ),
+                const VerticalDivider(width: 1, color: AppColors.outline),
+                Expanded(child: content),
+              ],
             ),
-        ],
-        onDestinationSelected: (index) {
-          setState(() {
-            _selectedIndex = index;
-            _quickActionsOpen = false;
-          });
-        },
+          );
+        }
+
+        return Scaffold(
+          extendBody: true,
+          body: content,
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerFloat,
+          floatingActionButton: QuickActionFab(
+            isOpen: _quickActionsOpen,
+            actions: DashboardMock.quickActions,
+            onToggle: () {
+              setState(() => _quickActionsOpen = !_quickActionsOpen);
+            },
+            onAction: _handleQuickAction,
+          ),
+          bottomNavigationBar: NavigationBar(
+            height: 78,
+            selectedIndex: _selectedIndex,
+            backgroundColor: AppColors.cream.withValues(alpha: .98),
+            indicatorColor: AppColors.softGreen,
+            elevation: 0,
+            shadowColor: Colors.transparent,
+            destinations: [
+              for (final item in _items)
+                NavigationDestination(
+                  icon: Icon(item.icon),
+                  selectedIcon: Icon(item.icon, color: AppColors.primaryDark),
+                  label: item.label,
+                ),
+            ],
+            onDestinationSelected: _selectPage,
+          ),
+        );
+      },
+    );
+  }
+
+  void _selectPage(int index) {
+    setState(() {
+      _selectedIndex = index;
+      _quickActionsOpen = false;
+    });
+  }
+}
+
+class _DesktopNavigation extends StatelessWidget {
+  const _DesktopNavigation({
+    required this.selectedIndex,
+    required this.items,
+    required this.onSelected,
+    required this.onQuickAction,
+  });
+
+  final int selectedIndex;
+  final List<({IconData icon, String label})> items;
+  final ValueChanged<int> onSelected;
+  final ValueChanged<QuickAction> onQuickAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: SizedBox(
+        width: 224,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 24, 18, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: const BoxDecoration(
+                        color: AppColors.primaryDark,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.favorite_rounded,
+                        color: Colors.white,
+                        size: 17,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Easylife',
+                        maxLines: 1,
+                        overflow: TextOverflow.fade,
+                        softWrap: false,
+                        style: Theme.of(context).textTheme.titleLarge,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 34),
+              for (var index = 0; index < items.length; index++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: _DesktopNavItem(
+                    label: items[index].label,
+                    icon: items[index].icon,
+                    selected: selectedIndex == index,
+                    onTap: () => onSelected(index),
+                  ),
+                ),
+              const Spacer(),
+              Text(
+                '快捷记录',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 10),
+              for (final action in DashboardMock.quickActions)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: OutlinedButton.icon(
+                    onPressed: () => onQuickAction(action),
+                    icon: Icon(action.icon, size: 18),
+                    label: Text(action.label),
+                    style: OutlinedButton.styleFrom(
+                      alignment: Alignment.centerLeft,
+                      backgroundColor: action.color.withValues(alpha: .55),
+                      side: BorderSide.none,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopNavItem extends StatelessWidget {
+  const _DesktopNavItem({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? AppColors.primaryMist : Colors.transparent,
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 21,
+                color:
+                    selected ? AppColors.primaryDark : AppColors.secondaryInk,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  color: selected ? AppColors.ink : AppColors.secondaryInk,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

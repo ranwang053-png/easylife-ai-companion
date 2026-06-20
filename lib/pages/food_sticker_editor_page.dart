@@ -39,11 +39,11 @@ class _FoodStickerEditorPageState extends State<FoodStickerEditorPage> {
               decoration: BoxDecoration(
                 color: _borderColor(_style),
                 borderRadius: BorderRadius.circular(36),
-                boxShadow: const [
+                boxShadow: [
                   BoxShadow(
-                    color: Color(0x18000000),
+                    color: AppColors.primaryDark.withValues(alpha: .08),
                     blurRadius: 18,
-                    offset: Offset(0, 8),
+                    offset: const Offset(0, 8),
                   ),
                 ],
               ),
@@ -59,7 +59,7 @@ class _FoodStickerEditorPageState extends State<FoodStickerEditorPage> {
                     Container(
                       height: 120,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF5DF),
+                        color: AppColors.champagneSoft,
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: Center(
@@ -127,7 +127,6 @@ class _FoodStickerEditorPageState extends State<FoodStickerEditorPage> {
                     widget.record.copyWith(stickerStyle: _style),
                   );
                 },
-                style: FilledButton.styleFrom(backgroundColor: AppColors.ink),
                 icon: const Icon(Icons.bookmark_add_outlined),
                 label: const Text('贴到今日手帐'),
               ),

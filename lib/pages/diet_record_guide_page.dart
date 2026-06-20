@@ -10,12 +10,14 @@ class DietRecordGuidePage extends StatefulWidget {
   const DietRecordGuidePage({
     required this.agentService,
     required this.userProfileService,
+    required this.onCaptureStarted,
     this.initialMeal,
     super.key,
   });
 
   final AgentService agentService;
   final UserProfileService userProfileService;
+  final Future<void> Function() onCaptureStarted;
   final MealType? initialMeal;
 
   @override
@@ -33,6 +35,8 @@ class _DietRecordGuidePageState extends State<DietRecordGuidePage> {
   }
 
   Future<void> _openCapture() async {
+    await widget.onCaptureStarted();
+    if (!mounted) return;
     final record = await Navigator.of(context).push<MealRecord>(
       MaterialPageRoute(
         builder: (_) => DietCapturePage(
@@ -78,13 +82,13 @@ class _DietRecordGuidePageState extends State<DietRecordGuidePage> {
                 children: const [
                   _GuidePanel(
                     icon: Icons.auto_awesome_rounded,
-                    color: AppColors.mistBlue,
+                    color: AppColors.primaryMist,
                     title: '一句话，也能轻松记录',
                     description: '拍照或输入一句话，Easylife 会帮你估算热量。',
                   ),
                   _GuidePanel(
                     icon: Icons.bookmark_added_outlined,
-                    color: AppColors.softYellow,
+                    color: AppColors.champagneSoft,
                     title: '把食物变成今日贴纸',
                     description: '记录会变成可爱的食物贴纸，贴到你的饮食日记里。',
                   ),
@@ -113,7 +117,6 @@ class _DietRecordGuidePageState extends State<DietRecordGuidePage> {
               height: 52,
               child: FilledButton(
                 onPressed: _continue,
-                style: FilledButton.styleFrom(backgroundColor: AppColors.ink),
                 child: Text(_page == 0 ? '继续' : '开始记录'),
               ),
             ),

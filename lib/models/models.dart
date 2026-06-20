@@ -1,3 +1,4 @@
+export 'auth_models.dart';
 export 'meal_record.dart';
 export 'pet_mood_log.dart';
 export 'pet_profile.dart';

@@ -1,0 +1,14 @@
+{
+  "purpose": "login",
+  "isNewUser": true,
+  "user": {
+    "id": "e0e00cc4-f640-4975-b21f-ad93c28b67f0",
+    "phoneMasked": "138****5678"
+  },
+  "tokens": {
+    "accessToken": "example-access-token-with-at-least-twenty-characters",
+    "accessTokenExpiresIn": 900,
+    "refreshToken": "example-refresh-token-with-at-least-twenty-characters",
+    "refreshTokenExpiresIn": 2592000
+  }
+}

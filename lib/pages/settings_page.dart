@@ -7,6 +7,8 @@ import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/companion_pet.dart';
 import '../widgets/page_header.dart';
+import '../widgets/profile_field_pickers.dart';
+import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 import 'pet_profile_form_page.dart';
 import 'pet_profile_onboarding_page.dart';
@@ -16,12 +18,14 @@ class SettingsPage extends StatefulWidget {
     required this.agentService,
     required this.petProfileService,
     required this.userProfileService,
+    required this.onLogout,
     super.key,
   });
 
   final AgentService agentService;
   final PetProfileService petProfileService;
   final UserProfileService userProfileService;
+  final Future<void> Function() onLogout;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -31,14 +35,6 @@ class _SettingsPageState extends State<SettingsPage> {
   UserProfile? _profile;
   PetProfile? _petProfile;
   var _isSaving = false;
-
-  static const _goalOptions = [
-    '减脂',
-    '规律作息',
-    '情绪稳定',
-    '提升体能',
-    '健康饮食',
-  ];
 
   @override
   void initState() {
@@ -103,6 +99,11 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('用户画像已保存到本机')));
+  }
+
+  Future<void> _logout() async {
+    Navigator.of(context).pop();
+    await widget.onLogout();
   }
 
   Future<String?> _editText({
@@ -185,28 +186,62 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _pickBirthDate() async {
+  Future<void> _pickBirthday() async {
     final profile = _profile!;
-    final date = await showDatePicker(
-      context: context,
-      initialDate: profile.birthday,
-      firstDate: DateTime(1940),
-      lastDate: DateTime.now(),
+    final date = await showBirthDateTimePicker(
+      context,
+      initialValue: profile.birthday,
     );
-    if (!mounted) return;
-    if (date != null) {
-      setState(() => _profile = profile.copyWith(birthday: date));
-    }
+    if (date == null || !mounted) return;
+    setState(() => _profile = profile.copyWith(birthday: date));
   }
 
-  void _toggleListValue({
-    required List<String> current,
-    required String value,
-    required UserProfile Function(List<String>) update,
-  }) {
-    final next = [...current];
-    next.contains(value) ? next.remove(value) : next.add(value);
-    setState(() => _profile = update(next));
+  Future<void> _pickRegion({required bool isBirthPlace}) async {
+    final profile = _profile!;
+    final value = await showRegionPicker(
+      context,
+      title: isBirthPlace ? '出生地' : '现居地',
+    );
+    if (value == null || !mounted) return;
+    setState(
+      () => _profile = isBirthPlace
+          ? profile.copyWith(birthPlace: value)
+          : profile.copyWith(currentResidence: value),
+    );
+  }
+
+  Future<void> _editRecentGoals() async {
+    final profile = _profile!;
+    final values = await showChoiceEditor(
+      context,
+      title: '近期目标',
+      options: recentGoalOptions,
+      selected: profile.goals,
+      customHint: '输入其他近期目标',
+      noneIsExclusive: true,
+    );
+    if (values == null || !mounted) return;
+    setState(() => _profile = profile.copyWith(goals: values));
+  }
+
+  Future<void> _editDietPreferences() async {
+    final profile = _profile!;
+    final selected = profile.dietPreference
+        .split(RegExp('[、,，]'))
+        .where((item) => item.trim().isNotEmpty)
+        .map((item) => item.trim())
+        .toList();
+    final values = await showChoiceEditor(
+      context,
+      title: '饮食偏好',
+      options: dietPreferenceOptions,
+      selected: selected,
+      customHint: '输入其他饮食偏好',
+    );
+    if (values == null || !mounted) return;
+    setState(
+      () => _profile = profile.copyWith(dietPreference: values.join('、')),
+    );
   }
 
   @override
@@ -227,9 +262,10 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
       body: profile == null
           ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              physics: const BouncingScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 40),
+          : ResponsivePageList(
+              maxWidth: 820,
+              top: 6,
+              bottom: 40,
               children: [
                 PageHeader(
                   title: '你好，${profile.nickname}',
@@ -238,7 +274,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 const SizedBox(height: 18),
                 _MemoryExplanation(profile: profile),
                 const SizedBox(height: 22),
-                const SectionTitle('宠物档案'),
+                const SectionTitle('伙伴档案'),
                 const SizedBox(height: 10),
                 _PetProfileCard(
                   profile: _petProfile,
@@ -271,10 +307,28 @@ class _SettingsPageState extends State<SettingsPage> {
                       ),
                       const Divider(height: 1, indent: 60),
                       _ProfileTile(
-                        icon: Icons.cake_outlined,
-                        title: '出生日期',
-                        value: _formatDate(profile.birthday),
-                        onTap: _pickBirthDate,
+                        icon: Icons.schedule_rounded,
+                        title: '出生时间',
+                        value: _formatDateTime(profile.birthday),
+                        onTap: _pickBirthday,
+                      ),
+                      const Divider(height: 1, indent: 60),
+                      _ProfileTile(
+                        icon: Icons.location_on_outlined,
+                        title: '出生地',
+                        value: profile.birthPlace.isEmpty
+                            ? '未填写'
+                            : profile.birthPlace,
+                        onTap: () => _pickRegion(isBirthPlace: true),
+                      ),
+                      const Divider(height: 1, indent: 60),
+                      _ProfileTile(
+                        icon: Icons.home_outlined,
+                        title: '现居地',
+                        value: profile.currentResidence.isEmpty
+                            ? '未填写'
+                            : profile.currentResidence,
+                        onTap: () => _pickRegion(isBirthPlace: false),
                       ),
                       const Divider(height: 1, indent: 60),
                       _ProfileTile(
@@ -373,16 +427,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 22),
-                const SectionTitle('当前目标'),
+                SectionTitle(
+                  '近期目标',
+                  action: '编辑',
+                  onAction: _editRecentGoals,
+                ),
                 const SizedBox(height: 10),
                 _MultiSelectCard(
-                  options: _goalOptions,
+                  options: recentGoalOptions,
                   selected: profile.goals,
-                  onToggle: (value) => _toggleListValue(
-                    current: profile.goals,
-                    value: value,
-                    update: (items) => profile.copyWith(goals: items),
-                  ),
+                  onToggle: (_) => _editRecentGoals(),
                 ),
                 const SizedBox(height: 22),
                 const SectionTitle('饮食与身体偏好'),
@@ -394,22 +448,10 @@ class _SettingsPageState extends State<SettingsPage> {
                       _ProfileTile(
                         icon: Icons.restaurant_menu_rounded,
                         title: '饮食偏好',
-                        value: profile.dietPreference,
-                        onTap: () async {
-                          final value = await _editText(
-                            title: '饮食偏好',
-                            initialValue: profile.dietPreference,
-                            keyboardType: TextInputType.multiline,
-                          );
-                          if (!mounted) return;
-                          if (value != null) {
-                            setState(
-                              () => _profile = profile.copyWith(
-                                dietPreference: value,
-                              ),
-                            );
-                          }
-                        },
+                        value: profile.dietPreference.isEmpty
+                            ? '未填写'
+                            : profile.dietPreference,
+                        onTap: _editDietPreferences,
                       ),
                       const Divider(height: 1, indent: 60),
                       _ProfileTile(
@@ -468,11 +510,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     children: [
                       _ProfileTile(
                         icon: Icons.notifications_active_outlined,
-                        title: '桌宠提醒强度',
+                        title: '伙伴提醒强度',
                         value: profile.petReminderStyle,
                         onTap: () async {
                           final value = await _selectOption(
-                            title: '桌宠提醒强度',
+                            title: '伙伴提醒强度',
                             options: const ['关闭', '轻提醒', '适中', '积极提醒'],
                             current: profile.petReminderStyle,
                           );
@@ -490,30 +532,47 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 22),
+                const SectionTitle('权限与通知'),
+                const SizedBox(height: 10),
+                _PermissionSettingsCard(
+                  profile: profile,
+                  onChanged: (updated) => setState(() => _profile = updated),
+                ),
+                const SizedBox(height: 22),
+                const SectionTitle('隐私与数据'),
+                const SizedBox(height: 10),
+                _PrivacySettingsCard(
+                  profile: profile,
+                  onChanged: (updated) => setState(() => _profile = updated),
+                ),
+                const SizedBox(height: 22),
                 const _StorageCard(),
                 const SizedBox(height: 18),
                 SizedBox(
                   height: 52,
                   child: FilledButton.icon(
                     onPressed: _isSaving ? null : _saveProfile,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.ink,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                    ),
                     icon: const Icon(Icons.save_outlined),
-                    label: Text(_isSaving ? '正在保存…' : '保存用户画像'),
+                    label: Text(_isSaving ? '正在保存…' : '保存'),
                   ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  key: const Key('logout-button'),
+                  onPressed: _logout,
+                  icon: const Icon(Icons.logout_rounded),
+                  label: const Text('退出登录'),
                 ),
               ],
             ),
     );
   }
 
-  String _formatDate(DateTime date) {
+  String _formatDateTime(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-'
-        '${date.day.toString().padLeft(2, '0')}';
+        '${date.day.toString().padLeft(2, '0')} '
+        '${date.hour.toString().padLeft(2, '0')}:'
+        '${date.minute.toString().padLeft(2, '0')}';
   }
 }
 
@@ -530,8 +589,8 @@ class _PetProfileCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final pet = profile;
     return SoftCard(
-      color: const Color(0xFFFFF7FA),
-      borderColor: const Color(0xFFF0DCE3),
+      color: AppColors.primaryMist,
+      borderColor: AppColors.outlineSoft,
       onTap: onTap,
       child: Row(
         children: [
@@ -542,7 +601,7 @@ class _PetProfileCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  pet?.name ?? '创建宠物档案',
+                  pet?.name ?? '创建伙伴档案',
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
                 const SizedBox(height: 5),
@@ -554,9 +613,9 @@ class _PetProfileCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  pet == null ? '去创建' : '编辑宠物档案',
+                  pet == null ? '去创建' : '编辑伙伴档案',
                   style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                        color: const Color(0xFF7459A8),
+                        color: AppColors.primaryDark,
                       ),
                 ),
               ],
@@ -577,8 +636,8 @@ class _MemoryExplanation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoftCard(
-      color: const Color(0xFFFFF7FA),
-      borderColor: const Color(0xFFF0DCE3),
+      color: AppColors.cream,
+      borderColor: AppColors.outlineSoft,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -594,7 +653,9 @@ class _MemoryExplanation extends StatelessWidget {
                 ),
                 const SizedBox(height: 7),
                 Text(
-                  '这些信息会帮助桌宠和 AI Agent 更懂你，用于生成更个性化的饮食建议、情绪陪伴和日常提醒。',
+                  profile.memoryNotes.isEmpty
+                      ? '这些信息会帮助伙伴和 AI Agent 更懂你，用于生成更个性化的饮食建议、情绪陪伴和日常提醒。'
+                      : '已在本机保存 ${profile.memoryNotes.length} 条对话提炼记忆。最近一条：${profile.memoryNotes.last}',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppColors.ink,
                         height: 1.55,
@@ -630,7 +691,7 @@ class _ProfileTile extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: const BoxDecoration(
-          color: AppColors.mistBlue,
+          color: AppColors.primarySoft,
           shape: BoxShape.circle,
         ),
         child: Icon(icon, size: 20),
@@ -664,12 +725,12 @@ class _MultiSelectCard extends StatelessWidget {
         spacing: 8,
         runSpacing: 8,
         children: [
-          for (final option in options)
+          for (final option in {...options, ...selected})
             FilterChip(
               label: Text(option),
               selected: selected.contains(option),
               showCheckmark: false,
-              selectedColor: AppColors.softPurple,
+              selectedColor: AppColors.softGreen,
               onSelected: (_) => onToggle(option),
             ),
         ],
@@ -684,8 +745,8 @@ class _StorageCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoftCard(
-      color: const Color(0xFFF5F8FA),
-      borderColor: const Color(0xFFDCE5EA),
+      color: AppColors.primaryMist,
+      borderColor: AppColors.outlineSoft,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -712,6 +773,143 @@ class _StorageCard extends StatelessWidget {
   }
 }
 
+class _PermissionSettingsCard extends StatelessWidget {
+  const _PermissionSettingsCard({
+    required this.profile,
+    required this.onChanged,
+  });
+
+  final UserProfile profile;
+  final ValueChanged<UserProfile> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SoftCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          _PreferenceSwitchTile(
+            icon: Icons.notifications_active_outlined,
+            title: '通知提醒',
+            value: profile.notificationsEnabled,
+            onChanged: (value) => onChanged(
+              profile.copyWith(notificationsEnabled: value),
+            ),
+          ),
+          const Divider(height: 1, indent: 60),
+          _PreferenceSwitchTile(
+            icon: Icons.location_on_outlined,
+            title: '定位服务',
+            value: profile.locationAccessEnabled,
+            onChanged: (value) => onChanged(
+              profile.copyWith(locationAccessEnabled: value),
+            ),
+          ),
+          const Divider(height: 1, indent: 60),
+          _PreferenceSwitchTile(
+            icon: Icons.mic_none_rounded,
+            title: '麦克风与语音输入',
+            value: profile.microphoneAccessEnabled,
+            onChanged: (value) => onChanged(
+              profile.copyWith(microphoneAccessEnabled: value),
+            ),
+          ),
+          const Divider(height: 1, indent: 60),
+          _PreferenceSwitchTile(
+            icon: Icons.photo_camera_outlined,
+            title: '相机与相册',
+            value: profile.cameraPhotoAccessEnabled,
+            onChanged: (value) => onChanged(
+              profile.copyWith(cameraPhotoAccessEnabled: value),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PrivacySettingsCard extends StatelessWidget {
+  const _PrivacySettingsCard({
+    required this.profile,
+    required this.onChanged,
+  });
+
+  final UserProfile profile;
+  final ValueChanged<UserProfile> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SoftCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        children: [
+          _PreferenceSwitchTile(
+            icon: Icons.cloud_sync_outlined,
+            title: '云端同步',
+            value: profile.cloudSyncEnabled,
+            onChanged: (value) => onChanged(
+              profile.copyWith(cloudSyncEnabled: value),
+            ),
+          ),
+          const Divider(height: 1, indent: 60),
+          _PreferenceSwitchTile(
+            icon: Icons.psychology_alt_outlined,
+            title: '长期记忆个性化',
+            value: profile.aiMemoryEnabled,
+            onChanged: (value) => onChanged(
+              profile.copyWith(aiMemoryEnabled: value),
+            ),
+          ),
+          const Divider(height: 1, indent: 60),
+          _PreferenceSwitchTile(
+            icon: Icons.bug_report_outlined,
+            title: '诊断日志',
+            value: profile.diagnosticsEnabled,
+            onChanged: (value) => onChanged(
+              profile.copyWith(diagnosticsEnabled: value),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreferenceSwitchTile extends StatelessWidget {
+  const _PreferenceSwitchTile({
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SwitchListTile(
+      value: value,
+      onChanged: onChanged,
+      activeThumbColor: AppColors.primaryDark,
+      activeTrackColor: AppColors.primarySoft,
+      secondary: Container(
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(
+          color: AppColors.primarySoft,
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 20),
+      ),
+      title: Text(title),
+    );
+  }
+}
+
 class _StorageRow extends StatelessWidget {
   const _StorageRow({
     required this.label,
@@ -730,7 +928,7 @@ class _StorageRow extends StatelessWidget {
         Icon(
           active ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
           size: 18,
-          color: active ? const Color(0xFF5B8A68) : AppColors.mutedInk,
+          color: active ? AppColors.primary : AppColors.mutedInk,
         ),
         const SizedBox(width: 9),
         SizedBox(

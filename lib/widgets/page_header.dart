@@ -17,15 +17,20 @@ class PageHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: Theme.of(context).textTheme.headlineMedium),
-              const SizedBox(height: 6),
-              Text(subtitle, style: Theme.of(context).textTheme.bodyMedium),
+              const SizedBox(height: 7),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: AppColors.secondaryInk,
+                    ),
+              ),
             ],
           ),
         ),
@@ -45,9 +50,15 @@ class SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Expanded(
-          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  letterSpacing: -.15,
+                ),
+          ),
         ),
         if (action case final value?)
           TextButton(
@@ -79,10 +90,10 @@ class SoftPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: selected ? AppColors.ink : Colors.white,
+      color: selected ? AppColors.primarySoft : AppColors.surface,
       shape: StadiumBorder(
         side: BorderSide(
-          color: selected ? AppColors.ink : AppColors.outline,
+          color: selected ? AppColors.primary : AppColors.outline,
         ),
       ),
       child: InkWell(
@@ -97,14 +108,15 @@ class SoftPill extends StatelessWidget {
                 Icon(
                   value,
                   size: 16,
-                  color: selected ? Colors.white : AppColors.secondaryInk,
+                  color:
+                      selected ? AppColors.primaryDark : AppColors.secondaryInk,
                 ),
                 const SizedBox(width: 6),
               ],
               Text(
                 label,
                 style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: selected ? Colors.white : AppColors.ink,
+                      color: selected ? AppColors.primaryDark : AppColors.ink,
                     ),
               ),
             ],

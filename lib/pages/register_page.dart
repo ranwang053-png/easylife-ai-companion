@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../widgets/responsive_page.dart';
 import 'login_page.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -46,13 +47,44 @@ class _RegisterPageState extends State<RegisterPage> {
         leading: BackButton(onPressed: widget.onBackToLogin),
         title: const Text('注册'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
+      body: ResponsivePageList(
+        maxWidth: 560,
+        top: 22,
+        bottom: 28,
         children: [
-          Text('创建 Mock 账号', style: Theme.of(context).textTheme.headlineMedium),
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: AppColors.primaryMist,
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: AppColors.outlineSoft),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '创建账号',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      const Text('先认识一下，慢慢建立属于你的生活档案。'),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.favorite_rounded,
+                  color: AppColors.champagne,
+                  size: 34,
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 8),
           const Text('当前为本地账号体验，不接验证码或远程账号系统。'),
-          const SizedBox(height: 28),
+          const SizedBox(height: 22),
           TextField(
             controller: _nicknameController,
             decoration: const InputDecoration(
@@ -74,7 +106,6 @@ class _RegisterPageState extends State<RegisterPage> {
             height: 52,
             child: FilledButton(
               onPressed: _submit,
-              style: FilledButton.styleFrom(backgroundColor: AppColors.ink),
               child: const Text('注册并继续'),
             ),
           ),

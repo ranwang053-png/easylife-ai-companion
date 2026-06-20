@@ -60,7 +60,7 @@ class _PetGenerationLoadingPageState extends State<PetGenerationLoadingPage> {
 
   @override
   Widget build(BuildContext context) {
-    const steps = ['正在识别宠物特征', '正在生成陪伴形象', '正在准备第一次见面'];
+    const steps = ['正在识别伙伴特征', '正在生成陪伴形象', '正在准备第一次见面'];
     return Scaffold(
       backgroundColor: AppColors.canvas,
       body: SafeArea(
@@ -76,7 +76,7 @@ class _PetGenerationLoadingPageState extends State<PetGenerationLoadingPage> {
                 ),
                 const SizedBox(height: 30),
                 Text(
-                  '正在生成你的专属宠物形象...',
+                  '正在生成你的专属伙伴形象...',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
@@ -93,7 +93,7 @@ class _PetGenerationLoadingPageState extends State<PetGenerationLoadingPage> {
                               : Icons.circle_outlined,
                           size: 18,
                           color: index <= _step
-                              ? const Color(0xFF8B72DA)
+                              ? AppColors.primary
                               : AppColors.mutedInk,
                         ),
                         const SizedBox(width: 8),

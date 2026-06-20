@@ -29,15 +29,15 @@ class PetAvatarPreviewPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.canvas,
-      appBar: AppBar(title: const Text('宠物形象预览')),
+      appBar: AppBar(title: const Text('伙伴形象预览')),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
         child: Column(
           children: [
             const Spacer(),
             const SoftCard(
-              color: Color(0xFFFFF6FA),
-              borderColor: Color(0xFFF0DCE3),
+              color: AppColors.primaryMist,
+              borderColor: AppColors.outlineSoft,
               child: SizedBox(
                 width: double.infinity,
                 height: 290,
@@ -86,8 +86,6 @@ class PetAvatarPreviewPage extends StatelessWidget {
                         ),
                       );
                     },
-                    style:
-                        FilledButton.styleFrom(backgroundColor: AppColors.ink),
                     child: const Text('继续'),
                   ),
                 ),

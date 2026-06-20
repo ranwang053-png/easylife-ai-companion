@@ -35,7 +35,7 @@ class PetProfileOnboardingPage extends StatelessWidget {
                 width: 220,
                 height: 220,
                 decoration: const BoxDecoration(
-                  color: Color(0xFFFFF5F8),
+                  color: AppColors.primaryMist,
                   shape: BoxShape.circle,
                 ),
                 alignment: Alignment.center,
@@ -43,13 +43,13 @@ class PetProfileOnboardingPage extends StatelessWidget {
               ),
               const SizedBox(height: 34),
               Text(
-                '让你的宠物住进 Easylife',
+                '创建你的专属陪伴伙伴',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 12),
               Text(
-                '上传一张宠物照片，生成你的专属陪伴伙伴',
+                '伙伴可以是宠物、家人、朋友、喜欢的人或理想角色',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                       color: AppColors.secondaryInk,
@@ -71,10 +71,7 @@ class PetProfileOnboardingPage extends StatelessWidget {
                       ),
                     );
                   },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.ink,
-                  ),
-                  child: const Text('制作宠物档案'),
+                  child: const Text('制作伙伴档案'),
                 ),
               ),
               const SizedBox(height: 10),
@@ -84,7 +81,7 @@ class PetProfileOnboardingPage extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                '以后也可以在设置页补建或修改宠物档案',
+                '以后也可以在设置页补建或修改伙伴档案',
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.labelMedium,
               ),

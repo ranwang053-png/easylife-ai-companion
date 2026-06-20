@@ -13,8 +13,9 @@
 事业/财富/爱情/人际分数、建议和避免。
 灵感创作与塔罗不属于当前 MVP。
 
-自 2026-06-13 起，当前前端范围冻结，不再新增页面、导航入口、首页卡片或业务模块。
-下一交付阶段集中解决本地数据持久化。
+自 2026-06-14 起解除前端功能冻结。允许优化现有页面的布局、配色、动效和组件，也可
+在保持现有功能与主导航不变的前提下全面重新设计 UI。新增功能需由用户明确确认，并
+同步更新产品范围、架构、测试和文档。
 首发平台确定为 iOS，当前打包和内测工作以真机与 TestFlight 为目标；Android 暂缓。
 
 ## 2. 当前流程
@@ -102,7 +103,7 @@ Flutter Page
 
 ## 6. 本地存储阶段
 
-按以下顺序推进，不并行扩展前端功能：
+本地存储基础工作已按以下顺序完成：
 
 1. 已为业务 models 增加 JSON 序列化和兼容默认值。
 2. 已建立统一的本地存储接口、异常恢复和测试替身。
@@ -136,8 +137,15 @@ flutter build web --release
 
 1. 在真机验证 App 重启后的数据恢复。
 2. 按 `docs/AI_BACKEND.md` 实现情绪分析后端。
-3. 补齐 Xcode、CocoaPods、Apple 签名与 TestFlight 环境。
-4. 完成 `docs/RELEASE_CHECKLIST.md` 中的人工验收。
-5. 未经新的明确产品决策，不解除前端冻结。
+3. 在测试 PostgreSQL 实例执行 `backend/database/migrations/0001_initial.sql`。
+4. 按 `contracts/openapi.yaml` 实现手机号认证、同步和账号注销事务。
+5. 补齐 Xcode、CocoaPods、Apple 签名与 TestFlight 环境。
+6. 完成 `docs/RELEASE_CHECKLIST.md` 中的人工验收。
+7. 持续优化或全面重新设计现有 UI；单纯 UI 改版保持现有功能与主导航不变。
+8. 新增功能前确认产品目标，并同步更新范围、架构、测试和文档。
 
-最后更新：2026-06-13
+前后端并行开发与联调门禁见 `docs/PARALLEL_DEVELOPMENT.md`。两端以
+`contracts/openapi.yaml` 为唯一标准，分别完成契约测试后方可联调，联调通过后方可
+进入 TestFlight 验收。
+
+最后更新：2026-06-14

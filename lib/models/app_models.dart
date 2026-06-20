@@ -54,12 +54,16 @@ class EmotionInsight {
     required this.petSuggestion,
     required this.petReply,
     required this.petStatus,
+    this.labels = const [],
   });
 
   final String label;
+  final List<String> labels;
   final int intensity;
   final String possibleReason;
   final String petSuggestion;
   final String petReply;
   final String petStatus;
+
+  List<String> get allLabels => labels.isEmpty ? [label] : labels;
 }

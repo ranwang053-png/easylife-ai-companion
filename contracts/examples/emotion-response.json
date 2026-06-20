@@ -1,0 +1,13 @@
+{
+  "label": "疲惫",
+  "labels": [
+    "疲惫",
+    "压力",
+    "需要休息"
+  ],
+  "intensity": 72,
+  "possibleReason": "持续处理任务可能造成注意力耗竭。",
+  "petSuggestion": "先缩减今晚必须完成的任务，给自己留出十分钟休息。",
+  "petReply": "听起来你已经撑了很久，我们先慢一点。",
+  "petStatus": "陪伴中"
+}

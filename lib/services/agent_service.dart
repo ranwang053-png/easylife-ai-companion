@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../models/app_models.dart';
@@ -46,12 +48,21 @@ abstract interface class AgentService {
   Future<void> updateUserProfile(UserProfile profile);
 }
 
-AgentService createAgentService() {
+typedef AccessTokenProvider = Future<String?> Function();
+typedef AgentFallbackReporter = void Function(String reason);
+
+AgentService createAgentService({
+  required AccessTokenProvider accessTokenProvider,
+}) {
   const baseUrl = String.fromEnvironment('EASYLIFE_API_BASE_URL');
   if (baseUrl.isEmpty) return const MockAgentService();
   return HttpAgentService(
     baseUri: Uri.parse(baseUrl),
     fallback: const MockAgentService(),
+    accessTokenProvider: accessTokenProvider,
+    onFallback: (reason) {
+      debugPrint('AgentService fallback: $reason');
+    },
   );
 }
 
@@ -59,11 +70,15 @@ class HttpAgentService implements AgentService {
   HttpAgentService({
     required this.baseUri,
     required this.fallback,
+    required this.accessTokenProvider,
+    this.onFallback,
     http.Client? client,
   }) : _client = client ?? http.Client();
 
   final Uri baseUri;
   final AgentService fallback;
+  final AccessTokenProvider accessTokenProvider;
+  final AgentFallbackReporter? onFallback;
   final http.Client _client;
 
   @override
@@ -72,31 +87,75 @@ class HttpAgentService implements AgentService {
     UserProfile profile,
   ) async {
     try {
+      final accessToken = await accessTokenProvider();
+      if (accessToken == null) {
+        return _fallbackEmotion(text, profile, 'missing_access_token');
+      }
       final response = await _client
           .post(
             baseUri.resolve('/v1/emotion/analyze'),
-            headers: const {'content-type': 'application/json'},
+            headers: {
+              'content-type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+              'X-Request-Id': _randomUuid(),
+            },
             body: jsonEncode({
               'text': text,
-              'profile': profile.toJson(),
+              'context': {
+                'nickname': profile.nickname,
+                'goals': profile.goals.take(10).toList(),
+                'personalTags': profile.personalTags.take(20).toList(),
+                'memoryNotes': profile.memoryNotes.reversed.take(12).toList(),
+                'petReminderStyle': profile.petReminderStyle,
+              },
+              'client': {
+                'platform': _clientPlatform(),
+                'appVersion': '0.2.0+2',
+                'locale': 'zh-CN',
+              },
             }),
           )
           .timeout(const Duration(seconds: 12));
       if (response.statusCode < 200 || response.statusCode >= 300) {
-        return fallback.analyzeEmotion(text, profile);
+        return _fallbackEmotion(
+          text,
+          profile,
+          'http_${response.statusCode}',
+        );
       }
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return EmotionInsight(
         label: json['label'] as String,
+        labels:
+            (json['labels'] as List<dynamic>?)?.whereType<String>().toList() ??
+                const [],
         intensity: (json['intensity'] as num).round().clamp(0, 100),
         possibleReason: json['possibleReason'] as String,
         petSuggestion: json['petSuggestion'] as String,
         petReply: json['petReply'] as String,
         petStatus: json['petStatus'] as String,
       );
-    } on Exception {
-      return fallback.analyzeEmotion(text, profile);
+    } on Exception catch (error) {
+      return _fallbackEmotion(text, profile, error.runtimeType.toString());
     }
+  }
+
+  Future<EmotionInsight> _fallbackEmotion(
+    String text,
+    UserProfile profile,
+    String reason,
+  ) async {
+    onFallback?.call(reason);
+    final insight = await fallback.analyzeEmotion(text, profile);
+    return EmotionInsight(
+      label: insight.label,
+      labels: insight.labels,
+      intensity: insight.intensity,
+      possibleReason: '当前网络分析不可用，以下为本地分析结果。${insight.possibleReason}',
+      petSuggestion: insight.petSuggestion,
+      petReply: insight.petReply,
+      petStatus: insight.petStatus,
+    );
   }
 
   @override
@@ -141,6 +200,27 @@ class HttpAgentService implements AgentService {
       fallback.updateUserProfile(profile);
 }
 
+String _clientPlatform() {
+  if (kIsWeb) return 'web';
+  return switch (defaultTargetPlatform) {
+    TargetPlatform.iOS => 'ios',
+    TargetPlatform.android => 'android',
+    _ => 'web',
+  };
+}
+
+String _randomUuid() {
+  final random = Random.secure();
+  final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex =
+      bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+      '${hex.substring(12, 16)}-${hex.substring(16, 20)}-'
+      '${hex.substring(20)}';
+}
+
 class MockAgentService implements AgentService {
   const MockAgentService();
 
@@ -151,6 +231,14 @@ class MockAgentService implements AgentService {
   ) async {
     await Future<void>.delayed(const Duration(milliseconds: 450));
     final normalized = text.toLowerCase();
+    final recentPatterns = profile.memoryNotes.reversed
+        .take(3)
+        .map((note) => note.split('：').first)
+        .toSet()
+        .join('、');
+    String withMemory(String content) => recentPatterns.isEmpty
+        ? content
+        : '$content 结合你近期记录里出现过的“$recentPatterns”，这次感受可能也与之前的状态有关。';
 
     if (normalized.contains('累') ||
         normalized.contains('疲惫') ||
@@ -158,12 +246,17 @@ class MockAgentService implements AgentService {
         normalized.contains('没睡')) {
       return EmotionInsight(
         label: '疲惫',
+        labels: const ['疲惫', '压力', '需要休息'],
         intensity: 72,
-        possibleReason: '持续消耗了较多精力，身体和注意力都在提醒你需要暂停。',
+        possibleReason: withMemory(
+          '你描述的不只是身体累，也可能包含持续处理任务后的注意力耗竭，以及担心停下来就会落后的压力。',
+        ),
         petSuggestion: profile.goals.contains('规律作息')
-            ? '今晚把按时休息放在第一位，只完成最低限度的事情。'
-            : '给自己安排十分钟不带目标的休息。',
-        petReply: '听起来你真的撑了很久。先靠一会儿，我陪你把今天放慢一点。',
+            ? '先把今晚必须完成的事情缩减到一项，再留出十分钟不带目标的休息，尽量按计划时间入睡。'
+            : '先区分“今天必须做”和“可以明天再做”，只保留最重要的一件事，然后给身体十分钟彻底停下来。',
+        petReply: '我听见你已经撑着走了很久，这种累不是一句“再坚持一下”就能解决的。\n\n'
+            '我们先把今天缩小一点：只挑一件真正重要的小事，剩下的先放到明天。你不用立刻振作，我会陪你慢下来。\n\n'
+            '现在更累的是身体，还是脑子里停不下来的事情？',
         petStatus: '疲惫',
       );
     }
@@ -173,12 +266,17 @@ class MockAgentService implements AgentService {
         normalized.contains('委屈') ||
         normalized.contains('焦虑') ||
         normalized.contains('烦')) {
-      return const EmotionInsight(
+      return EmotionInsight(
         label: '低落',
+        labels: const ['低落', '委屈', '需要被理解'],
         intensity: 68,
-        possibleReason: '期待没有被满足，或有些压力暂时找不到出口。',
-        petSuggestion: '先说出最让你难受的一件事，不急着马上解决全部问题。',
-        petReply: '你的感受不是小题大做。我会安静听着，你可以慢慢说。',
+        possibleReason: withMemory(
+          '你可能同时经历了期待落空、没有被充分理解，以及暂时找不到出口的无力感。真正难受的也许不是事情本身，而是已经努力过却仍觉得自己不够好。',
+        ),
+        petSuggestion: '先不急着评价自己。写下“发生了什么、我最在意什么、我现在需要什么”三句话，只处理其中最清楚的一项。',
+        petReply: '我能感觉到这件事压在你心里，不只是难过，可能还有一点委屈和对自己的怀疑。\n\n'
+            '你不需要马上证明自己没事。我们可以先把最刺痛你的那一小部分说清楚，其他的暂时不用解决。\n\n'
+            '如果只能选一个，你更希望我先听你讲经过，还是陪你想下一步？',
         petStatus: '陪伴中',
       );
     }
@@ -187,22 +285,31 @@ class MockAgentService implements AgentService {
         normalized.contains('顺利') ||
         normalized.contains('喜欢') ||
         normalized.contains('完成')) {
-      return const EmotionInsight(
+      return EmotionInsight(
         label: '开心',
+        labels: const ['开心', '成就感', '放松'],
         intensity: 82,
-        possibleReason: '今天发生了让你有掌控感或被认可的事情。',
-        petSuggestion: '把这件开心的小事记下来，让它成为以后低落时的能量。',
-        petReply: '我也替你开心！这一刻很值得被好好收藏起来。',
+        possibleReason: withMemory(
+          '这份开心可能来自事情顺利完成后的掌控感，也包含努力被看见、紧张终于放下来的轻松。',
+        ),
+        petSuggestion: '用一句话记下“我做对了什么”，再给这次完成一个小小的庆祝，让成就感真正停留一会儿。',
+        petReply: '我也跟着你松了一口气。这份开心不是偶然，是你前面的投入终于有了回应。\n\n'
+            '先别急着奔向下一件事，让我们把这一刻多留一会儿。你今天最想为自己的哪一点鼓掌？',
         petStatus: '开心',
       );
     }
 
-    return const EmotionInsight(
+    return EmotionInsight(
       label: '平静',
+      labels: const ['平静', '稳定', '自我觉察'],
       intensity: 45,
-      possibleReason: '情绪处在相对稳定的区间，你正在观察和整理自己的感受。',
-      petSuggestion: '保持现在的节奏，留意身体最需要的是什么。',
-      petReply: '不用急着给感受下结论，我就在这里陪你慢慢看清它。',
+      possibleReason: withMemory(
+        '情绪目前相对稳定，你有余力观察自己的状态。平静也可能是忙碌后的缓冲期，值得留意身体是否仍有尚未被注意到的疲劳。',
+      ),
+      petSuggestion: '保持当前节奏，花一分钟感受呼吸、肩颈和胃口，再决定今天是继续推进，还是提前为自己留一点空白。',
+      petReply: '现在的你像是慢慢站稳了，不需要急着给今天下结论。\n\n'
+          '我们可以趁这份平静听一听身体：有没有哪个地方还绷着，或者有什么小愿望一直没顾上？\n\n'
+          '你想继续聊今天发生的事，还是一起安排一个轻松的小计划？',
       petStatus: '安静听你说',
     );
   }
@@ -217,7 +324,7 @@ class MockAgentService implements AgentService {
     final text = foodDescription.trim();
     final normalized = text.toLowerCase();
     var calories = 280;
-    var note = '基于常见份量的 Mock 估算';
+    var note = '基于常见份量估算';
 
     if (normalized.contains('海盐焦糖拿铁')) {
       calories = 300;
@@ -260,7 +367,7 @@ class MockAgentService implements AgentService {
     final text = '$description ${ingredientsText ?? ''}'.toLowerCase();
     var foodName = description.trim().isEmpty ? '图片中的餐食' : description.trim();
     var baseCalories = 360;
-    var nutritionNote = '根据常见份量进行 Mock 热量估算。';
+    var nutritionNote = '根据常见份量进行热量估算。';
     var suggestion = '留意今天整体的蛋白质和蔬菜摄入。';
 
     if (text.contains('海盐焦糖拿铁') || text.contains('瑞幸')) {
@@ -286,7 +393,7 @@ class MockAgentService implements AgentService {
     } else if (imagePath != null) {
       foodName = description.trim().isEmpty ? '番茄鸡肉饭' : description.trim();
       baseCalories = 520;
-      nutritionNote = '这是基于 Mock 图片识别的常见份量估算。';
+      nutritionNote = '这是基于图片识别的常见份量估算。';
       suggestion = '可以补充一份深色蔬菜。';
     }
 

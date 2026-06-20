@@ -9,6 +9,8 @@ class PetProfile {
     required this.originalPhotoUrl,
     required this.generatedAvatarUrl,
     required this.createdAt,
+    this.profileSource = '',
+    this.personalitySummary = '',
   });
 
   final String id;
@@ -20,6 +22,8 @@ class PetProfile {
   final String? originalPhotoUrl;
   final String? generatedAvatarUrl;
   final DateTime createdAt;
+  final String profileSource;
+  final String personalitySummary;
 
   factory PetProfile.fromJson(Map<String, dynamic> json) {
     return PetProfile(
@@ -33,6 +37,8 @@ class PetProfile {
       originalPhotoUrl: json['originalPhotoUrl'] as String?,
       generatedAvatarUrl: json['generatedAvatarUrl'] as String?,
       createdAt: DateTime.parse(json['createdAt'] as String),
+      profileSource: json['profileSource'] as String? ?? '',
+      personalitySummary: json['personalitySummary'] as String? ?? '',
     );
   }
 
@@ -46,6 +52,8 @@ class PetProfile {
         'originalPhotoUrl': originalPhotoUrl,
         'generatedAvatarUrl': generatedAvatarUrl,
         'createdAt': createdAt.toIso8601String(),
+        'profileSource': profileSource,
+        'personalitySummary': personalitySummary,
       };
 
   PetProfile copyWith({
@@ -57,6 +65,8 @@ class PetProfile {
     String? relationshipNote,
     String? originalPhotoUrl,
     String? generatedAvatarUrl,
+    String? profileSource,
+    String? personalitySummary,
   }) {
     return PetProfile(
       id: id,
@@ -68,6 +78,8 @@ class PetProfile {
       originalPhotoUrl: originalPhotoUrl ?? this.originalPhotoUrl,
       generatedAvatarUrl: generatedAvatarUrl ?? this.generatedAvatarUrl,
       createdAt: createdAt,
+      profileSource: profileSource ?? this.profileSource,
+      personalitySummary: personalitySummary ?? this.personalitySummary,
     );
   }
 }

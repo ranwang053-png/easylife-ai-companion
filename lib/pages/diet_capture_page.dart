@@ -4,6 +4,7 @@ import '../models/app_models.dart';
 import '../services/agent_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 import 'diet_recognition_confirm_page.dart';
 
@@ -109,12 +110,14 @@ class _DietCapturePageState extends State<DietCapturePage> {
     return Scaffold(
       backgroundColor: AppColors.canvas,
       appBar: AppBar(title: const Text('记录今天吃了什么')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 30),
+      body: ResponsivePageList(
+        maxWidth: 720,
+        top: 12,
+        bottom: 30,
         children: [
           SoftCard(
-            color: const Color(0xFFFFFBF3),
-            borderColor: const Color(0xFFF0E4C9),
+            color: AppColors.primaryMist,
+            borderColor: AppColors.outlineSoft,
             child: SizedBox(
               height: 190,
               child: Center(
@@ -133,10 +136,10 @@ class _DietCapturePageState extends State<DietCapturePage> {
                           Icon(
                             Icons.restaurant_rounded,
                             size: 76,
-                            color: Color(0xFF708D69),
+                            color: AppColors.primary,
                           ),
                           SizedBox(height: 8),
-                          Text('Mock 食物照片已选择'),
+                          Text('食物照片已选择'),
                         ],
                       ),
               ),
@@ -203,7 +206,6 @@ class _DietCapturePageState extends State<DietCapturePage> {
             height: 52,
             child: FilledButton.icon(
               onPressed: _isAnalyzing ? null : _analyze,
-              style: FilledButton.styleFrom(backgroundColor: AppColors.ink),
               icon: _isAnalyzing
                   ? const SizedBox.square(
                       dimension: 17,

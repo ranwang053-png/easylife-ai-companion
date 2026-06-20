@@ -12,6 +12,18 @@ class UserProfile {
     required this.dietPreference,
     required this.foodRestrictions,
     required this.petReminderStyle,
+    this.birthPlace = '',
+    this.currentResidence = '',
+    this.personalTags = const [],
+    this.memoryNotes = const [],
+    this.notificationsEnabled = true,
+    this.locationAccessEnabled = false,
+    this.microphoneAccessEnabled = true,
+    this.cameraPhotoAccessEnabled = false,
+    this.healthDataAccessEnabled = false,
+    this.cloudSyncEnabled = false,
+    this.aiMemoryEnabled = true,
+    this.diagnosticsEnabled = false,
   });
 
   final String accountIdentifier;
@@ -26,6 +38,18 @@ class UserProfile {
   final String dietPreference;
   final String foodRestrictions;
   final String petReminderStyle;
+  final String birthPlace;
+  final String currentResidence;
+  final List<String> personalTags;
+  final List<String> memoryNotes;
+  final bool notificationsEnabled;
+  final bool locationAccessEnabled;
+  final bool microphoneAccessEnabled;
+  final bool cameraPhotoAccessEnabled;
+  final bool healthDataAccessEnabled;
+  final bool cloudSyncEnabled;
+  final bool aiMemoryEnabled;
+  final bool diagnosticsEnabled;
 
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
@@ -41,6 +65,21 @@ class UserProfile {
       dietPreference: json['dietPreference'] as String? ?? '',
       foodRestrictions: json['foodRestrictions'] as String? ?? '',
       petReminderStyle: json['petReminderStyle'] as String? ?? '轻提醒',
+      birthPlace: json['birthPlace'] as String? ?? '',
+      currentResidence: json['currentResidence'] as String? ?? '',
+      personalTags:
+          List<String>.from(json['personalTags'] as List? ?? const []),
+      memoryNotes: List<String>.from(json['memoryNotes'] as List? ?? const []),
+      notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
+      locationAccessEnabled: json['locationAccessEnabled'] as bool? ?? false,
+      microphoneAccessEnabled: json['microphoneAccessEnabled'] as bool? ?? true,
+      cameraPhotoAccessEnabled:
+          json['cameraPhotoAccessEnabled'] as bool? ?? false,
+      healthDataAccessEnabled:
+          json['healthDataAccessEnabled'] as bool? ?? false,
+      cloudSyncEnabled: json['cloudSyncEnabled'] as bool? ?? false,
+      aiMemoryEnabled: json['aiMemoryEnabled'] as bool? ?? true,
+      diagnosticsEnabled: json['diagnosticsEnabled'] as bool? ?? false,
     );
   }
 
@@ -57,6 +96,18 @@ class UserProfile {
         'dietPreference': dietPreference,
         'foodRestrictions': foodRestrictions,
         'petReminderStyle': petReminderStyle,
+        'birthPlace': birthPlace,
+        'currentResidence': currentResidence,
+        'personalTags': personalTags,
+        'memoryNotes': memoryNotes,
+        'notificationsEnabled': notificationsEnabled,
+        'locationAccessEnabled': locationAccessEnabled,
+        'microphoneAccessEnabled': microphoneAccessEnabled,
+        'cameraPhotoAccessEnabled': cameraPhotoAccessEnabled,
+        'healthDataAccessEnabled': healthDataAccessEnabled,
+        'cloudSyncEnabled': cloudSyncEnabled,
+        'aiMemoryEnabled': aiMemoryEnabled,
+        'diagnosticsEnabled': diagnosticsEnabled,
       };
 
   UserProfile copyWith({
@@ -73,6 +124,18 @@ class UserProfile {
     String? dietPreference,
     String? foodRestrictions,
     String? petReminderStyle,
+    String? birthPlace,
+    String? currentResidence,
+    List<String>? personalTags,
+    List<String>? memoryNotes,
+    bool? notificationsEnabled,
+    bool? locationAccessEnabled,
+    bool? microphoneAccessEnabled,
+    bool? cameraPhotoAccessEnabled,
+    bool? healthDataAccessEnabled,
+    bool? cloudSyncEnabled,
+    bool? aiMemoryEnabled,
+    bool? diagnosticsEnabled,
   }) {
     return UserProfile(
       accountIdentifier: accountIdentifier ?? this.accountIdentifier,
@@ -87,6 +150,22 @@ class UserProfile {
       dietPreference: dietPreference ?? this.dietPreference,
       foodRestrictions: foodRestrictions ?? this.foodRestrictions,
       petReminderStyle: petReminderStyle ?? this.petReminderStyle,
+      birthPlace: birthPlace ?? this.birthPlace,
+      currentResidence: currentResidence ?? this.currentResidence,
+      personalTags: personalTags ?? this.personalTags,
+      memoryNotes: memoryNotes ?? this.memoryNotes,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      locationAccessEnabled:
+          locationAccessEnabled ?? this.locationAccessEnabled,
+      microphoneAccessEnabled:
+          microphoneAccessEnabled ?? this.microphoneAccessEnabled,
+      cameraPhotoAccessEnabled:
+          cameraPhotoAccessEnabled ?? this.cameraPhotoAccessEnabled,
+      healthDataAccessEnabled:
+          healthDataAccessEnabled ?? this.healthDataAccessEnabled,
+      cloudSyncEnabled: cloudSyncEnabled ?? this.cloudSyncEnabled,
+      aiMemoryEnabled: aiMemoryEnabled ?? this.aiMemoryEnabled,
+      diagnosticsEnabled: diagnosticsEnabled ?? this.diagnosticsEnabled,
     );
   }
 }

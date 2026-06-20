@@ -1,0 +1,1681 @@
+openapi: 3.1.0
+info:
+  title: Easylife API
+  version: 1.1.0
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+  description: |
+    Easylife 前后端 V1 接口契约。
+
+    当前版本只冻结情绪分析接口。该接口是无状态 AI 推理接口，不负责创建、
+    更新或保存情绪日记。只有用户明确确认记录后，客户端才应调用未来的数据同步接口。
+
+    V1 兼容规则：
+    - 可以新增可选字段。
+    - 不得删除字段、改变字段类型或改变既有字段语义。
+    - 破坏性变更必须发布新的主版本路径。
+servers:
+  - url: https://api.example.com
+    description: 示例生产环境
+  - url: http://localhost:3000
+    description: 本地开发环境
+tags:
+  - name: Authentication
+    description: 中国大陆手机号、短信验证码和会话管理
+  - name: Emotion
+    description: 情绪分析与陪伴回复
+  - name: Sync
+    description: 本地优先的增量数据同步
+  - name: Account
+    description: 账号生命周期与数据删除
+paths:
+  /v1/auth/sms/codes:
+    post:
+      tags:
+        - Authentication
+      operationId: sendSmsCode
+      summary: 发送短信验证码
+      description: |
+        向中国大陆手机号发送验证码。验证码 5 分钟有效，同一手机号 60 秒后方可重发。
+        同一手机号每小时最多发送 5 次、每天最多 10 次；同一设备或 IP 每小时最多
+        20 次。服务端不得通过响应泄露手机号是否已注册。
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendSmsCodeRequest"
+            examples:
+              login:
+                $ref: "#/components/examples/SendSmsCodeRequest"
+      responses:
+        "200":
+          description: 验证码发送请求已接受
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendSmsCodeResponse"
+              examples:
+                default:
+                  $ref: "#/components/examples/SendSmsCodeResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/RateLimitedError"
+        "503":
+          $ref: "#/components/responses/SmsProviderUnavailableError"
+  /v1/auth/sms/verify:
+    post:
+      tags:
+        - Authentication
+      operationId: verifySmsCode
+      summary: 验证短信验证码
+      description: |
+        登录验证码验证成功后，如果手机号尚未注册则自动创建账号，并返回登录会话。
+        注销验证码验证成功后只返回短期注销凭证，不创建新会话。
+        每个 challenge 最多允许 5 次错误验证，超过后立即失效。
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifySmsCodeRequest"
+            examples:
+              login:
+                $ref: "#/components/examples/VerifySmsCodeRequest"
+      responses:
+        "200":
+          description: 验证成功
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/LoginVerificationResponse"
+                  - $ref: "#/components/schemas/AccountDeletionVerificationResponse"
+              examples:
+                login:
+                  $ref: "#/components/examples/LoginVerificationResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "410":
+          $ref: "#/components/responses/SmsCodeExpiredError"
+        "422":
+          $ref: "#/components/responses/SmsCodeInvalidError"
+        "429":
+          $ref: "#/components/responses/VerificationAttemptsExceededError"
+  /v1/auth/token/refresh:
+    post:
+      tags:
+        - Authentication
+      operationId: refreshAccessToken
+      summary: 刷新访问令牌
+      description: 使用一次性轮换的刷新令牌签发新会话；旧刷新令牌成功使用后立即失效。
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: 令牌刷新成功
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/InvalidRefreshTokenError"
+  /v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      operationId: logout
+      summary: 退出当前设备
+      description: 撤销当前设备会话及对应刷新令牌；该操作必须幂等。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "204":
+          description: 当前设备会话已撤销或此前已经失效
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+  /v1/emotion/analyze:
+    post:
+      tags:
+        - Emotion
+      operationId: analyzeEmotion
+      summary: 分析用户当前情绪
+      description: |
+        根据用户本轮输入和经过最小化处理的个性化上下文，返回结构化情绪洞察。
+        服务端不得进行医学诊断，也不得在该接口中自动保存情绪日记。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmotionAnalyzeRequest"
+            examples:
+              default:
+                $ref: "#/components/examples/EmotionAnalyzeRequest"
+      responses:
+        "200":
+          description: 情绪分析成功
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmotionAnalyzeResponse"
+              examples:
+                default:
+                  $ref: "#/components/examples/EmotionAnalyzeResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLargeError"
+        "422":
+          $ref: "#/components/responses/AiOutputInvalidError"
+        "429":
+          $ref: "#/components/responses/RateLimitedError"
+        "503":
+          $ref: "#/components/responses/AiProviderUnavailableError"
+  /v1/sync/push:
+    post:
+      tags:
+        - Sync
+      operationId: pushSyncMutations
+      summary: 上传本地待同步变更
+      description: |
+        批量上传本地 Outbox 中的变更。mutationId 在用户范围内必须幂等；
+        重复提交同一 mutationId 必须返回之前的处理结果，不得重复创建数据。
+        情绪分析结果只有在用户明确确认记录后才能作为 emotionEntry 或 memoryNote 上传。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SyncPushRequest"
+            examples:
+              default:
+                $ref: "#/components/examples/SyncPushRequest"
+      responses:
+        "200":
+          description: 批次已处理；单条成功、冲突或拒绝结果在 results 中返回
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncPushResponse"
+              examples:
+                default:
+                  $ref: "#/components/examples/SyncPushResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLargeError"
+  /v1/sync/pull:
+    get:
+      tags:
+        - Sync
+      operationId: pullSyncChanges
+      summary: 拉取服务端增量变更
+      description: |
+        使用不透明游标按稳定顺序拉取增量数据，包括删除墓碑。首次同步不传 cursor。
+        客户端必须持续拉取直到 hasMore 为 false，再保存最终 nextCursor。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+        - name: cursor
+          in: query
+          required: false
+          description: 服务端返回的不透明同步游标。
+          schema:
+            type: string
+            maxLength: 500
+        - name: limit
+          in: query
+          required: false
+          description: 单页最大变更数量。
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 100
+      responses:
+        "200":
+          description: 增量变更列表
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SyncPullResponse"
+              examples:
+                default:
+                  $ref: "#/components/examples/SyncPullResponse"
+        "400":
+          $ref: "#/components/responses/InvalidCursorError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+  /v1/me/account:
+    delete:
+      tags:
+        - Account
+      operationId: deleteAccount
+      summary: 注销当前账号
+      description: |
+        使用短信验证后签发的短期注销凭证启动账号注销。成功后立即撤销全部会话，
+        客户端必须停止同步并清除本机令牌和业务数据。服务端异步完成云端物理删除。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteAccountRequest"
+            examples:
+              default:
+                $ref: "#/components/examples/DeleteAccountRequest"
+      responses:
+        "202":
+          description: 注销任务已创建，全部会话已撤销
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeleteAccountResponse"
+              examples:
+                default:
+                  $ref: "#/components/examples/DeleteAccountResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "410":
+          $ref: "#/components/responses/DeletionVerificationExpiredError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 未来真实登录签发的访问令牌。
+  parameters:
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: true
+      description: 客户端生成的 UUID，用于端到端请求追踪。
+      schema:
+        type: string
+        format: uuid
+      example: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+  headers:
+    RequestId:
+      required: true
+      description: 与请求一致的追踪 ID；若请求 ID 无效，服务端可生成新 UUID。
+      schema:
+        type: string
+        format: uuid
+      example: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+  schemas:
+    ChinaMainlandPhone:
+      type: string
+      pattern: '^\+86(1[3-9][0-9]{9})$'
+      description: 中国大陆手机号，使用 E.164 格式。
+      example: "+8613812345678"
+    DeviceId:
+      type: string
+      format: uuid
+      description: App 首次安装时生成并保存在设备安全存储中的安装标识。
+      example: 6ecb2ba5-6c51-4a40-b908-8be4311c7f85
+    SmsPurpose:
+      type: string
+      enum:
+        - login
+        - account_deletion
+    SendSmsCodeRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - phone
+        - purpose
+        - deviceId
+      properties:
+        phone:
+          $ref: "#/components/schemas/ChinaMainlandPhone"
+        purpose:
+          $ref: "#/components/schemas/SmsPurpose"
+        deviceId:
+          $ref: "#/components/schemas/DeviceId"
+    SendSmsCodeResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - challengeId
+        - expiresIn
+        - resendAfter
+      properties:
+        challengeId:
+          type: string
+          format: uuid
+          description: 本次验证码挑战 ID，不包含验证码本身。
+        expiresIn:
+          type: integer
+          const: 300
+          description: 验证码有效秒数。
+        resendAfter:
+          type: integer
+          const: 60
+          description: 可以再次请求验证码前的等待秒数。
+    VerifySmsCodeRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - challengeId
+        - phone
+        - code
+        - deviceId
+      properties:
+        challengeId:
+          type: string
+          format: uuid
+        phone:
+          $ref: "#/components/schemas/ChinaMainlandPhone"
+        code:
+          type: string
+          pattern: '^[0-9]{6}$'
+          description: 6 位数字短信验证码。
+          example: "123456"
+        deviceId:
+          $ref: "#/components/schemas/DeviceId"
+    AuthUser:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - phoneMasked
+      properties:
+        id:
+          type: string
+          format: uuid
+        phoneMasked:
+          type: string
+          pattern: '^1[3-9][0-9]\*{4}[0-9]{4}$'
+          example: 138****5678
+    TokenPair:
+      type: object
+      additionalProperties: false
+      required:
+        - accessToken
+        - accessTokenExpiresIn
+        - refreshToken
+        - refreshTokenExpiresIn
+      properties:
+        accessToken:
+          type: string
+          minLength: 20
+          description: 短期访问令牌，建议有效期 15 分钟。
+        accessTokenExpiresIn:
+          type: integer
+          const: 900
+        refreshToken:
+          type: string
+          minLength: 20
+          description: 一次性轮换刷新令牌，只能保存在 iOS Keychain 等安全存储中。
+        refreshTokenExpiresIn:
+          type: integer
+          const: 2592000
+          description: 刷新令牌有效期 30 天。
+    LoginVerificationResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - purpose
+        - isNewUser
+        - user
+        - tokens
+      properties:
+        purpose:
+          type: string
+          const: login
+        isNewUser:
+          type: boolean
+          description: true 表示手机号首次验证成功且账号已自动注册。
+        user:
+          $ref: "#/components/schemas/AuthUser"
+        tokens:
+          $ref: "#/components/schemas/TokenPair"
+    AccountDeletionVerificationResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - purpose
+        - deletionToken
+        - expiresIn
+      properties:
+        purpose:
+          type: string
+          const: account_deletion
+        deletionToken:
+          type: string
+          minLength: 20
+          description: 仅可用于注销当前账号的一次性短期凭证。
+        expiresIn:
+          type: integer
+          const: 600
+          description: 注销凭证有效期 10 分钟。
+    RefreshTokenRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - refreshToken
+        - deviceId
+      properties:
+        refreshToken:
+          type: string
+          minLength: 20
+        deviceId:
+          $ref: "#/components/schemas/DeviceId"
+    LogoutRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - deviceId
+      properties:
+        deviceId:
+          $ref: "#/components/schemas/DeviceId"
+    EntityType:
+      type: string
+      enum:
+        - userProfile
+        - petProfile
+        - emotionEntry
+        - memoryNote
+    DeletableEntityType:
+      type: string
+      enum:
+        - petProfile
+        - emotionEntry
+        - memoryNote
+      description: 用户画像不得通过普通同步删除；账号数据删除必须使用注销接口。
+    SyncEntityMetadata:
+      type: object
+      required:
+        - id
+        - createdAt
+        - updatedAt
+        - version
+        - deletedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        version:
+          type: integer
+          minimum: 1
+        deletedAt:
+          type:
+            - string
+            - "null"
+          format: date-time
+    UserProfilePayload:
+      type: object
+      additionalProperties: false
+      required:
+        - nickname
+        - birthday
+        - gender
+        - occupation
+        - mbti
+        - zodiac
+        - goals
+        - targetWeight
+        - dietPreference
+        - foodRestrictions
+        - petReminderStyle
+        - birthPlace
+        - currentResidence
+        - personalTags
+      properties:
+        nickname:
+          type: string
+          maxLength: 50
+        birthday:
+          type: string
+          format: date
+        gender:
+          type:
+            - string
+            - "null"
+          maxLength: 30
+        occupation:
+          type: string
+          maxLength: 100
+        mbti:
+          type: string
+          maxLength: 10
+        zodiac:
+          type: string
+          maxLength: 20
+        goals:
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+        targetWeight:
+          type: number
+          minimum: 0
+          maximum: 500
+        dietPreference:
+          type: string
+          maxLength: 500
+        foodRestrictions:
+          type: string
+          maxLength: 500
+        petReminderStyle:
+          type: string
+          maxLength: 50
+        birthPlace:
+          type: string
+          maxLength: 100
+        currentResidence:
+          type: string
+          maxLength: 100
+        personalTags:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+    PetProfilePayload:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - birthday
+        - gender
+        - personalityTags
+        - relationshipNote
+        - originalPhotoUrl
+        - generatedAvatarUrl
+        - profileSource
+        - personalitySummary
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+        birthday:
+          type: string
+          format: date
+        gender:
+          type:
+            - string
+            - "null"
+          maxLength: 30
+        personalityTags:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+        relationshipNote:
+          type: string
+          maxLength: 500
+        originalPhotoUrl:
+          type:
+            - string
+            - "null"
+          format: uri
+        generatedAvatarUrl:
+          type:
+            - string
+            - "null"
+          format: uri
+        profileSource:
+          type: string
+          maxLength: 500
+        personalitySummary:
+          type: string
+          maxLength: 1000
+    EmotionEntryPayload:
+      type: object
+      additionalProperties: false
+      required:
+        - occurredAt
+        - userText
+        - emotionLabel
+        - emotionLabels
+        - emotionScore
+        - petReply
+        - suggestion
+      properties:
+        occurredAt:
+          type: string
+          format: date-time
+        userText:
+          type: string
+          minLength: 1
+          maxLength: 4000
+        emotionLabel:
+          type: string
+          minLength: 1
+          maxLength: 30
+        emotionLabels:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          description: 第一项必须等于 emotionLabel。
+          items:
+            type: string
+            minLength: 1
+            maxLength: 30
+        emotionScore:
+          type: number
+          minimum: 0
+          maximum: 1
+        petReply:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        suggestion:
+          type: string
+          minLength: 1
+          maxLength: 1000
+    MemoryNotePayload:
+      type: object
+      additionalProperties: false
+      required:
+        - content
+        - sourceEmotionEntryId
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 500
+        sourceEmotionEntryId:
+          type:
+            - string
+            - "null"
+          format: uuid
+          description: 产生该记忆的情绪日记 ID；手动创建时可以为空。
+    UserProfileEntity:
+      allOf:
+        - $ref: "#/components/schemas/SyncEntityMetadata"
+        - type: object
+          required:
+            - entityType
+            - payload
+          properties:
+            entityType:
+              type: string
+              const: userProfile
+            payload:
+              oneOf:
+                - $ref: "#/components/schemas/UserProfilePayload"
+                - type: "null"
+      unevaluatedProperties: false
+    PetProfileEntity:
+      allOf:
+        - $ref: "#/components/schemas/SyncEntityMetadata"
+        - type: object
+          required:
+            - entityType
+            - payload
+          properties:
+            entityType:
+              type: string
+              const: petProfile
+            payload:
+              oneOf:
+                - $ref: "#/components/schemas/PetProfilePayload"
+                - type: "null"
+      unevaluatedProperties: false
+    EmotionEntryEntity:
+      allOf:
+        - $ref: "#/components/schemas/SyncEntityMetadata"
+        - type: object
+          required:
+            - entityType
+            - payload
+          properties:
+            entityType:
+              type: string
+              const: emotionEntry
+            payload:
+              oneOf:
+                - $ref: "#/components/schemas/EmotionEntryPayload"
+                - type: "null"
+      unevaluatedProperties: false
+    MemoryNoteEntity:
+      allOf:
+        - $ref: "#/components/schemas/SyncEntityMetadata"
+        - type: object
+          required:
+            - entityType
+            - payload
+          properties:
+            entityType:
+              type: string
+              const: memoryNote
+            payload:
+              oneOf:
+                - $ref: "#/components/schemas/MemoryNotePayload"
+                - type: "null"
+      unevaluatedProperties: false
+    SyncEntity:
+      oneOf:
+        - $ref: "#/components/schemas/UserProfileEntity"
+        - $ref: "#/components/schemas/PetProfileEntity"
+        - $ref: "#/components/schemas/EmotionEntryEntity"
+        - $ref: "#/components/schemas/MemoryNoteEntity"
+      discriminator:
+        propertyName: entityType
+        mapping:
+          userProfile: "#/components/schemas/UserProfileEntity"
+          petProfile: "#/components/schemas/PetProfileEntity"
+          emotionEntry: "#/components/schemas/EmotionEntryEntity"
+          memoryNote: "#/components/schemas/MemoryNoteEntity"
+    SyncUpsertMutationBase:
+      type: object
+      required:
+        - mutationId
+        - entityId
+        - operation
+        - baseVersion
+        - clientUpdatedAt
+      properties:
+        mutationId:
+          type: string
+          format: uuid
+        entityId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          const: upsert
+        baseVersion:
+          type: integer
+          minimum: 0
+          description: 新实体使用 0，更新实体使用客户端最后确认的服务端版本。
+        clientUpdatedAt:
+          type: string
+          format: date-time
+          description: 仅用于展示和诊断，不作为冲突胜负依据。
+    UserProfileUpsertMutation:
+      allOf:
+        - $ref: "#/components/schemas/SyncUpsertMutationBase"
+        - type: object
+          required:
+            - entityType
+            - payload
+          properties:
+            entityType:
+              type: string
+              const: userProfile
+            payload:
+              $ref: "#/components/schemas/UserProfilePayload"
+      unevaluatedProperties: false
+    PetProfileUpsertMutation:
+      allOf:
+        - $ref: "#/components/schemas/SyncUpsertMutationBase"
+        - type: object
+          required:
+            - entityType
+            - payload
+          properties:
+            entityType:
+              type: string
+              const: petProfile
+            payload:
+              $ref: "#/components/schemas/PetProfilePayload"
+      unevaluatedProperties: false
+    EmotionEntryUpsertMutation:
+      allOf:
+        - $ref: "#/components/schemas/SyncUpsertMutationBase"
+        - type: object
+          required:
+            - entityType
+            - payload
+          properties:
+            entityType:
+              type: string
+              const: emotionEntry
+            payload:
+              $ref: "#/components/schemas/EmotionEntryPayload"
+      unevaluatedProperties: false
+    MemoryNoteUpsertMutation:
+      allOf:
+        - $ref: "#/components/schemas/SyncUpsertMutationBase"
+        - type: object
+          required:
+            - entityType
+            - payload
+          properties:
+            entityType:
+              type: string
+              const: memoryNote
+            payload:
+              $ref: "#/components/schemas/MemoryNotePayload"
+      unevaluatedProperties: false
+    SyncUpsertMutation:
+      oneOf:
+        - $ref: "#/components/schemas/UserProfileUpsertMutation"
+        - $ref: "#/components/schemas/PetProfileUpsertMutation"
+        - $ref: "#/components/schemas/EmotionEntryUpsertMutation"
+        - $ref: "#/components/schemas/MemoryNoteUpsertMutation"
+      discriminator:
+        propertyName: entityType
+        mapping:
+          userProfile: "#/components/schemas/UserProfileUpsertMutation"
+          petProfile: "#/components/schemas/PetProfileUpsertMutation"
+          emotionEntry: "#/components/schemas/EmotionEntryUpsertMutation"
+          memoryNote: "#/components/schemas/MemoryNoteUpsertMutation"
+    SyncDeleteMutation:
+      type: object
+      additionalProperties: false
+      required:
+        - mutationId
+        - entityType
+        - entityId
+        - operation
+        - baseVersion
+        - clientUpdatedAt
+      properties:
+        mutationId:
+          type: string
+          format: uuid
+        entityType:
+          $ref: "#/components/schemas/DeletableEntityType"
+        entityId:
+          type: string
+          format: uuid
+        operation:
+          type: string
+          const: delete
+        baseVersion:
+          type: integer
+          minimum: 1
+        clientUpdatedAt:
+          type: string
+          format: date-time
+    SyncMutation:
+      oneOf:
+        - $ref: "#/components/schemas/SyncUpsertMutation"
+        - $ref: "#/components/schemas/SyncDeleteMutation"
+      discriminator:
+        propertyName: operation
+        mapping:
+          upsert: "#/components/schemas/SyncUpsertMutation"
+          delete: "#/components/schemas/SyncDeleteMutation"
+    SyncPushRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - deviceId
+        - mutations
+      properties:
+        deviceId:
+          $ref: "#/components/schemas/DeviceId"
+        mutations:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: "#/components/schemas/SyncMutation"
+    SyncMutationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - mutationId
+        - entityType
+        - entityId
+        - status
+        - entity
+        - error
+      properties:
+        mutationId:
+          type: string
+          format: uuid
+        entityType:
+          $ref: "#/components/schemas/EntityType"
+        entityId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum:
+            - applied
+            - duplicate
+            - conflict
+            - rejected
+        entity:
+          oneOf:
+            - $ref: "#/components/schemas/SyncEntity"
+            - type: "null"
+          description: applied、duplicate 或 conflict 时返回服务端当前实体。
+        error:
+          oneOf:
+            - $ref: "#/components/schemas/SyncMutationError"
+            - type: "null"
+    SyncMutationError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - VERSION_CONFLICT
+            - ENTITY_NOT_FOUND
+            - ENTITY_VALIDATION_ERROR
+            - ENTITY_TYPE_MISMATCH
+        message:
+          type: string
+          minLength: 1
+          maxLength: 300
+    SyncPushResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - results
+        - serverTime
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncMutationResult"
+        serverTime:
+          type: string
+          format: date-time
+    SyncPullResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - changes
+        - nextCursor
+        - hasMore
+        - serverTime
+      properties:
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/SyncEntity"
+        nextCursor:
+          type: string
+          minLength: 1
+          maxLength: 500
+        hasMore:
+          type: boolean
+        serverTime:
+          type: string
+          format: date-time
+    DeleteAccountRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - deletionToken
+        - deviceId
+      properties:
+        deletionToken:
+          type: string
+          minLength: 20
+        deviceId:
+          $ref: "#/components/schemas/DeviceId"
+    DeleteAccountResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - deletionRequestId
+        - status
+        - requestedAt
+      properties:
+        deletionRequestId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          const: pending
+        requestedAt:
+          type: string
+          format: date-time
+    EmotionAnalyzeRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - text
+        - context
+        - client
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 4000
+          description: |
+            用户本轮输入。多轮对话可由客户端按时间顺序拼接，但不得包含未获授权的
+            其他会话或后台采集内容。
+          example: 今天工作很多，我有点累，也担心做得不够好。
+        context:
+          $ref: "#/components/schemas/EmotionContext"
+        client:
+          $ref: "#/components/schemas/ClientContext"
+    EmotionContext:
+      type: object
+      additionalProperties: false
+      description: |
+        情绪分析所需的最小化个性化上下文。不得包含账号、邮箱、完整生日、出生地、
+        当前住址、体重或饮食限制。
+      required:
+        - nickname
+        - goals
+        - personalTags
+        - memoryNotes
+        - petReminderStyle
+      properties:
+        nickname:
+          type: string
+          maxLength: 50
+          description: 用户昵称；允许为空字符串。
+          example: 小满
+        goals:
+          type: array
+          maxItems: 10
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+          example:
+            - 规律作息
+        personalTags:
+          type: array
+          maxItems: 20
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 50
+          example:
+            - 工作压力较高
+        memoryNotes:
+          type: array
+          maxItems: 12
+          description: 用户确认保留的近期提炼记忆，不发送全部逐字聊天记录。
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+          example:
+            - 疲惫、压力：连续加班后很累
+        petReminderStyle:
+          type: string
+          maxLength: 50
+          description: 用户选择的陪伴和提醒语气。
+          example: 轻提醒
+    ClientContext:
+      type: object
+      additionalProperties: false
+      required:
+        - platform
+        - appVersion
+        - locale
+      properties:
+        platform:
+          type: string
+          enum:
+            - ios
+            - android
+            - web
+          example: ios
+        appVersion:
+          type: string
+          pattern: '^[0-9]+\.[0-9]+\.[0-9]+(?:\+[0-9]+)?$'
+          example: 0.2.0+2
+        locale:
+          type: string
+          pattern: '^[a-z]{2}(?:-[A-Z]{2})?$'
+          example: zh-CN
+    EmotionAnalyzeResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - label
+        - labels
+        - intensity
+        - possibleReason
+        - petSuggestion
+        - petReply
+        - petStatus
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 30
+          description: 主情绪标签，必须与 labels 的第一项一致。
+          example: 疲惫
+        labels:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          description: 主标签和辅助标签；第一项必须等于 label。
+          items:
+            type: string
+            minLength: 1
+            maxLength: 30
+          example:
+            - 疲惫
+            - 压力
+            - 需要休息
+        intensity:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 当前情绪强度，不代表医学评估结果。
+          example: 72
+        possibleReason:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: 以不确定性语言表达的可能原因，不得给出医学诊断。
+          example: 持续处理任务可能造成注意力耗竭。
+        petSuggestion:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: 温和、具体、低风险且可执行的建议。
+          example: 先缩减今晚必须完成的任务，给自己留出十分钟休息。
+        petReply:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: 伙伴向用户展示的陪伴回复。
+          example: 听起来你已经撑了很久，我们先慢一点。
+        petStatus:
+          type: string
+          minLength: 1
+          maxLength: 30
+          description: 当前伙伴展示状态。
+          example: 陪伴中
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required:
+            - code
+            - message
+            - requestId
+          properties:
+            code:
+              $ref: "#/components/schemas/ErrorCode"
+            message:
+              type: string
+              minLength: 1
+              maxLength: 300
+              description: 面向开发者的稳定错误说明，不包含隐私数据或模型原文。
+              example: 请求内容不符合接口要求
+            requestId:
+              type: string
+              format: uuid
+              example: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    ErrorCode:
+      type: string
+      enum:
+        - VALIDATION_ERROR
+        - UNAUTHORIZED
+        - PAYLOAD_TOO_LARGE
+        - SMS_CODE_EXPIRED
+        - SMS_CODE_INVALID
+        - VERIFICATION_ATTEMPTS_EXCEEDED
+        - SMS_PROVIDER_UNAVAILABLE
+        - INVALID_REFRESH_TOKEN
+        - INVALID_SYNC_CURSOR
+        - DELETION_VERIFICATION_EXPIRED
+        - AI_OUTPUT_INVALID
+        - RATE_LIMITED
+        - AI_PROVIDER_UNAVAILABLE
+  responses:
+    ValidationError:
+      description: 请求字段缺失、格式错误或超出字段限制
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: VALIDATION_ERROR
+              message: 请求内容不符合接口要求
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    UnauthorizedError:
+      description: 未提供有效访问令牌
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: UNAUTHORIZED
+              message: 登录状态无效或已经过期
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    SmsCodeExpiredError:
+      description: 验证码已过期、已使用或 challenge 已失效
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: SMS_CODE_EXPIRED
+              message: 验证码已失效，请重新获取
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    SmsCodeInvalidError:
+      description: 验证码错误但尚未达到错误次数上限
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: SMS_CODE_INVALID
+              message: 验证码错误
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    VerificationAttemptsExceededError:
+      description: 同一 challenge 已累计 5 次错误，验证码立即失效
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+        Retry-After:
+          description: 建议再次请求验证码前等待的秒数。
+          schema:
+            type: integer
+            minimum: 1
+          example: 60
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: VERIFICATION_ATTEMPTS_EXCEEDED
+              message: 验证次数过多，请重新获取验证码
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    SmsProviderUnavailableError:
+      description: 短信服务暂时不可用
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+        Retry-After:
+          description: 建议客户端等待的秒数。
+          schema:
+            type: integer
+            minimum: 1
+          example: 60
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: SMS_PROVIDER_UNAVAILABLE
+              message: 短信服务暂时不可用
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    InvalidRefreshTokenError:
+      description: 刷新令牌无效、过期、已轮换或与设备不匹配
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: INVALID_REFRESH_TOKEN
+              message: 登录状态已失效，请重新登录
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    InvalidCursorError:
+      description: 同步游标无效、已过期或不属于当前用户
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: INVALID_SYNC_CURSOR
+              message: 同步位置已失效，请重新执行完整同步
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    DeletionVerificationExpiredError:
+      description: 注销凭证已过期、已使用或与当前账号不匹配
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: DELETION_VERIFICATION_EXPIRED
+              message: 注销验证已失效，请重新验证手机号
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    PayloadTooLargeError:
+      description: 请求体超过服务端允许大小
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: PAYLOAD_TOO_LARGE
+              message: 请求内容过长
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    AiOutputInvalidError:
+      description: 模型输出未通过服务端结构或安全校验
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: AI_OUTPUT_INVALID
+              message: 暂时无法生成有效的情绪分析结果
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    RateLimitedError:
+      description: 请求频率超过服务端限制
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+        Retry-After:
+          description: 建议客户端等待的秒数。
+          schema:
+            type: integer
+            minimum: 1
+          example: 30
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: RATE_LIMITED
+              message: 请求过于频繁，请稍后再试
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+    AiProviderUnavailableError:
+      description: 模型供应商或情绪分析服务暂时不可用
+      headers:
+        X-Request-Id:
+          $ref: "#/components/headers/RequestId"
+        Retry-After:
+          description: 建议客户端等待的秒数。
+          schema:
+            type: integer
+            minimum: 1
+          example: 30
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+          example:
+            error:
+              code: AI_PROVIDER_UNAVAILABLE
+              message: 情绪分析服务暂时不可用
+              requestId: 6f2aa37d-e95d-4b52-8df4-0cf3e17e5188
+  examples:
+    SendSmsCodeRequest:
+      summary: 请求登录验证码
+      value:
+        phone: "+8613812345678"
+        purpose: login
+        deviceId: 6ecb2ba5-6c51-4a40-b908-8be4311c7f85
+    SendSmsCodeResponse:
+      summary: 验证码挑战
+      value:
+        challengeId: 984e6346-f8a1-4511-8ec2-a960bc338705
+        expiresIn: 300
+        resendAfter: 60
+    VerifySmsCodeRequest:
+      summary: 验证登录验证码
+      value:
+        challengeId: 984e6346-f8a1-4511-8ec2-a960bc338705
+        phone: "+8613812345678"
+        code: "123456"
+        deviceId: 6ecb2ba5-6c51-4a40-b908-8be4311c7f85
+    LoginVerificationResponse:
+      summary: 新手机号自动注册并登录
+      value:
+        purpose: login
+        isNewUser: true
+        user:
+          id: e0e00cc4-f640-4975-b21f-ad93c28b67f0
+          phoneMasked: "138****5678"
+        tokens:
+          accessToken: example-access-token-with-at-least-twenty-characters
+          accessTokenExpiresIn: 900
+          refreshToken: example-refresh-token-with-at-least-twenty-characters
+          refreshTokenExpiresIn: 2592000
+    SyncPushRequest:
+      summary: 用户确认后上传情绪日记和长期记忆
+      value:
+        deviceId: 6ecb2ba5-6c51-4a40-b908-8be4311c7f85
+        mutations:
+          - mutationId: 4e2576f0-2dae-445f-8f7c-bccec87b97b4
+            entityType: emotionEntry
+            entityId: 1466e202-579e-47e3-833f-051e1cc591b1
+            operation: upsert
+            baseVersion: 0
+            clientUpdatedAt: "2026-06-15T08:00:00Z"
+            payload:
+              occurredAt: "2026-06-15T08:00:00Z"
+              userText: 今天工作很多，我有点累。
+              emotionLabel: 疲惫
+              emotionLabels:
+                - 疲惫
+                - 压力
+              emotionScore: 0.72
+              petReply: 听起来你已经撑了很久，我们先慢一点。
+              suggestion: 先缩减今晚必须完成的任务。
+          - mutationId: 9862cd17-8160-4be5-bd19-d3e73014d970
+            entityType: memoryNote
+            entityId: 15f4a054-b480-45d8-b9f3-32151f8818b2
+            operation: upsert
+            baseVersion: 0
+            clientUpdatedAt: "2026-06-15T08:00:00Z"
+            payload:
+              content: 疲惫、压力：连续工作后很累
+              sourceEmotionEntryId: 1466e202-579e-47e3-833f-051e1cc591b1
+    SyncPushResponse:
+      summary: 同步变更处理成功
+      value:
+        results:
+          - mutationId: 4e2576f0-2dae-445f-8f7c-bccec87b97b4
+            entityType: emotionEntry
+            entityId: 1466e202-579e-47e3-833f-051e1cc591b1
+            status: applied
+            entity:
+              id: 1466e202-579e-47e3-833f-051e1cc591b1
+              createdAt: "2026-06-15T08:00:01Z"
+              updatedAt: "2026-06-15T08:00:01Z"
+              version: 1
+              deletedAt: null
+              entityType: emotionEntry
+              payload:
+                occurredAt: "2026-06-15T08:00:00Z"
+                userText: 今天工作很多，我有点累。
+                emotionLabel: 疲惫
+                emotionLabels:
+                  - 疲惫
+                  - 压力
+                emotionScore: 0.72
+                petReply: 听起来你已经撑了很久，我们先慢一点。
+                suggestion: 先缩减今晚必须完成的任务。
+            error: null
+          - mutationId: 9862cd17-8160-4be5-bd19-d3e73014d970
+            entityType: memoryNote
+            entityId: 15f4a054-b480-45d8-b9f3-32151f8818b2
+            status: applied
+            entity:
+              id: 15f4a054-b480-45d8-b9f3-32151f8818b2
+              createdAt: "2026-06-15T08:00:01Z"
+              updatedAt: "2026-06-15T08:00:01Z"
+              version: 1
+              deletedAt: null
+              entityType: memoryNote
+              payload:
+                content: 疲惫、压力：连续工作后很累
+                sourceEmotionEntryId: 1466e202-579e-47e3-833f-051e1cc591b1
+            error: null
+        serverTime: "2026-06-15T08:00:01Z"
+    SyncPullResponse:
+      summary: 拉取包含删除墓碑的增量变更
+      value:
+        changes:
+          - id: 1466e202-579e-47e3-833f-051e1cc591b1
+            createdAt: "2026-06-15T08:00:01Z"
+            updatedAt: "2026-06-15T09:00:00Z"
+            version: 2
+            deletedAt: "2026-06-15T09:00:00Z"
+            entityType: emotionEntry
+            payload: null
+        nextCursor: eyJzZXF1ZW5jZSI6MTAwfQ
+        hasMore: false
+        serverTime: "2026-06-15T09:00:01Z"
+    DeleteAccountRequest:
+      summary: 使用二次短信验证凭证注销账号
+      value:
+        deletionToken: example-deletion-token-with-at-least-twenty-characters
+        deviceId: 6ecb2ba5-6c51-4a40-b908-8be4311c7f85
+    DeleteAccountResponse:
+      summary: 注销任务已启动
+      value:
+        deletionRequestId: 14b1330e-3f86-4b71-9719-c8cd58c4ea6f
+        status: pending
+        requestedAt: "2026-06-15T10:00:00Z"
+    EmotionAnalyzeRequest:
+      summary: 疲惫与工作压力
+      value:
+        text: 今天工作很多，我有点累，也担心做得不够好。
+        context:
+          nickname: 小满
+          goals:
+            - 规律作息
+          personalTags:
+            - 工作压力较高
+          memoryNotes:
+            - 疲惫、压力：连续加班后很累
+          petReminderStyle: 轻提醒
+        client:
+          platform: ios
+          appVersion: 0.2.0+2
+          locale: zh-CN
+    EmotionAnalyzeResponse:
+      summary: 疲惫情绪分析结果
+      value:
+        label: 疲惫
+        labels:
+          - 疲惫
+          - 压力
+          - 需要休息
+        intensity: 72
+        possibleReason: 持续处理任务可能造成注意力耗竭。
+        petSuggestion: 先缩减今晚必须完成的任务，给自己留出十分钟休息。
+        petReply: 听起来你已经撑了很久，我们先慢一点。
+        petStatus: 陪伴中

@@ -8,6 +8,7 @@ import '../services/journal_repository.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/page_header.dart';
+import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 import 'diet_capture_page.dart';
 import 'diet_record_guide_page.dart';
@@ -113,10 +114,15 @@ class HealthPageState extends State<HealthPage> {
         date: DateTime.now(),
         weight: result,
       );
-      if (_weights.isEmpty) {
-        _weights.add(record);
-      } else {
+      final lastRecord = _weights.isEmpty ? null : _weights.last;
+      final isSameDay = lastRecord != null &&
+          lastRecord.date.year == record.date.year &&
+          lastRecord.date.month == record.date.month &&
+          lastRecord.date.day == record.date.day;
+      if (isSameDay) {
         _weights[_weights.length - 1] = record;
+      } else {
+        _weights.add(record);
       }
     });
     await widget.journalRepository.saveWeightRecords(_weights);
@@ -136,14 +142,13 @@ class HealthPageState extends State<HealthPage> {
         : DietRecordGuidePage(
             agentService: widget.agentService,
             userProfileService: widget.userProfileService,
+            onCaptureStarted: _markDietGuideSeen,
             initialMeal: meal,
           );
     final record = await Navigator.of(context).push<MealRecord>(
       MaterialPageRoute(builder: (_) => page),
     );
     if (!mounted) return;
-    _hasSeenDietGuide = true;
-    await widget.journalRepository.setHasSeenDietGuide(true);
     if (record == null) return;
     setState(() => _foodLogs.add(record));
     await widget.journalRepository.saveMealRecords(_foodLogs);
@@ -152,6 +157,11 @@ class HealthPageState extends State<HealthPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${record.foodName}已贴到今日饮食手帐')),
     );
+  }
+
+  Future<void> _markDietGuideSeen() async {
+    _hasSeenDietGuide = true;
+    await widget.journalRepository.setHasSeenDietGuide(true);
   }
 
   Future<void> _refreshMealPlan() async {
@@ -182,9 +192,9 @@ class HealthPageState extends State<HealthPage> {
 
     return SafeArea(
       bottom: false,
-      child: ListView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 14, 20, 126),
+      child: ResponsivePageList(
+        maxWidth: 920,
+        bottom: ResponsivePage.isWide(context) ? 40 : 126,
         children: [
           PageHeader(
             title: '饮食体重',
@@ -192,7 +202,10 @@ class HealthPageState extends State<HealthPage> {
             trailing: IconButton.filledTonal(
               onPressed: _recordWeight,
               tooltip: '新增体重',
-              style: IconButton.styleFrom(backgroundColor: Colors.white),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: AppColors.primaryDark,
+              ),
               icon: const Icon(Icons.add_chart_rounded),
             ),
           ),
@@ -215,8 +228,7 @@ class HealthPageState extends State<HealthPage> {
           _RecordFoodBanner(onTap: _openDietRecord),
           const SizedBox(height: 20),
           SoftCard(
-            color: const Color(0xFFFFFCF6),
-            borderColor: const Color(0xFFECE3D5),
+            color: AppColors.surface,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -262,8 +274,8 @@ class _RecordFoodBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoftCard(
-      color: const Color(0xFFF5F8F1),
-      borderColor: const Color(0xFFDCE7D7),
+      color: AppColors.primaryMist,
+      borderColor: AppColors.outlineSoft,
       onTap: onTap,
       child: Row(
         children: [
@@ -287,7 +299,7 @@ class _RecordFoodBanner extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'AI Mock 识别热量，再制作成食物贴纸',
+                  'AI 识别热量，再制作成食物贴纸',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
@@ -475,12 +487,13 @@ class _FoodCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: stickerBorder, width: 5),
-        boxShadow: const [
+        border:
+            Border.all(color: stickerBorder.withValues(alpha: .7), width: 2),
+        boxShadow: [
           BoxShadow(
-            color: Color(0x13000000),
-            blurRadius: 10,
-            offset: Offset(0, 5),
+            color: AppColors.primaryDark.withValues(alpha: .07),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -596,8 +609,8 @@ class _DailySummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final progress = (totalCalories / targetCalories).clamp(0.0, 1.0);
     return SoftCard(
-      color: const Color(0xFFFFFBF3),
-      borderColor: const Color(0xFFF0E4C9),
+      color: AppColors.primaryMist,
+      borderColor: AppColors.outlineSoft,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -619,8 +632,8 @@ class _DailySummaryCard extends StatelessWidget {
             child: LinearProgressIndicator(
               value: progress,
               minHeight: 9,
-              backgroundColor: Colors.white,
-              color: const Color(0xFF9CB58D),
+              backgroundColor: AppColors.surface,
+              color: AppColors.primary,
             ),
           ),
           const SizedBox(height: 6),
@@ -723,14 +736,14 @@ class _WeightChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final linePaint = Paint()
-      ..color = const Color(0xFF9B83D4)
-      ..strokeWidth = 2.5
+      ..color = AppColors.primary
+      ..strokeWidth = 2
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
     final gridPaint = Paint()
       ..color = AppColors.outline
       ..strokeWidth = 1;
-    final dotPaint = Paint()..color = const Color(0xFF9B83D4);
+    final dotPaint = Paint()..color = AppColors.primary;
     const labelStyle = TextStyle(color: AppColors.mutedInk, fontSize: 9);
 
     for (var row = 0; row < 3; row++) {
@@ -751,7 +764,7 @@ class _WeightChartPainter extends CustomPainter {
       } else {
         path.lineTo(x, y);
       }
-      canvas.drawCircle(Offset(x, y), 4, dotPaint);
+      canvas.drawCircle(Offset(x, y), 3.2, dotPaint);
       final painter = TextPainter(
         text: TextSpan(
           text: index == points.length - 1
