@@ -1203,7 +1203,7 @@ components:
         appVersion:
           type: string
           pattern: '^[0-9]+\.[0-9]+\.[0-9]+(?:\+[0-9]+)?$'
-          example: 0.2.0+2
+          example: 0.3.0+3
         locale:
           type: string
           pattern: '^[a-z]{2}(?:-[A-Z]{2})?$'
@@ -1664,7 +1664,7 @@ components:
           petReminderStyle: 轻提醒
         client:
           platform: ios
-          appVersion: 0.2.0+2
+          appVersion: 0.3.0+3
           locale: zh-CN
     EmotionAnalyzeResponse:
       summary: 疲惫情绪分析结果

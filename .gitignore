@@ -16,3 +16,4 @@ macos/Flutter/ephemeral/
 .idea/
 .vscode/
 .DS_Store
+node_modules

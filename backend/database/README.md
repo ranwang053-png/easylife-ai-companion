@@ -15,12 +15,25 @@ Easylife 后端数据库使用 PostgreSQL。当前迁移只覆盖第一阶段：
 ## Apply migration
 
 准备 PostgreSQL 15 或更高版本，并设置连接字符串。迁移不依赖数据库加密扩展，
-手机号哈希和加密均由后端应用层完成：
+手机号哈希和加密均由后端应用层完成。推荐由版本化迁移命令执行：
+
+```bash
+cd backend/server
+export DATABASE_URL='postgresql://user:password@localhost:5432/easylife'
+npm run migrate
+```
+
+该命令使用 `schema_migrations`、advisory lock 和迁移校验和避免重复执行及静默修改。
+以下命令仅用于人工检查或受控环境：
 
 ```bash
 export DATABASE_URL='postgresql://user:password@localhost:5432/easylife'
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f backend/database/migrations/0001_initial.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f backend/database/migrations/0002_auth_hardening.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f backend/database/migrations/0003_auth_operations.sql
 ```
 
 迁移完成后运行可回滚的约束测试：
@@ -28,6 +41,10 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
 ```bash
 psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
   -f backend/database/tests/0001_smoke.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f backend/database/tests/0002_auth_hardening_smoke.sql
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
+  -f backend/database/tests/0003_auth_operations_smoke.sql
 ```
 
 生产环境使用独立的迁移角色。应用运行角色不应拥有创建扩展、删除 Schema 或修改迁移
@@ -58,6 +75,12 @@ psql "$DATABASE_URL" -v ON_ERROR_STOP=1 \
 - `code_hash` 使用 challenge ID、验证码和独立 pepper 计算 keyed hash。
 - 只保存设备和 IP 的 keyed hash，不保存原始设备标识或 IP。
 - 定期删除已经过期、消费或失效的 challenge。
+
+刷新令牌只以 keyed hash 保存在 `auth_sessions`。每次轮换时，旧哈希进入
+`auth_refresh_token_history` 用于检测重放；检测到已使用 Token 后撤销对应会话。
+一次性注销凭证保存在 `account_deletion_tokens`，并绑定用户与设备 keyed hash。
+`account_deletion_requests` 通过租约、worker ID、尝试次数和下次重试时间支持多个
+worker 安全并发消费。过期租约可以被其他 worker 回收。
 
 频率限制需要在事务中查询对应索引，并配合 Redis 或数据库 advisory lock 防止并发
 绕过。无论手机号是否已注册，发送接口都返回相同结构。

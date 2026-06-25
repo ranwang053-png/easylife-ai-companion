@@ -19,6 +19,8 @@ class LoginPage extends StatefulWidget {
     required this.authService,
     required this.deviceId,
     required this.showExampleCode,
+    required this.demoMode,
+    required this.onEnterDemo,
     required this.onAuthenticated,
     super.key,
   });
@@ -26,6 +28,8 @@ class LoginPage extends StatefulWidget {
   final AuthService authService;
   final Future<String> deviceId;
   final bool showExampleCode;
+  final bool demoMode;
+  final Future<void> Function() onEnterDemo;
   final ValueChanged<LoginVerificationResponse> onAuthenticated;
 
   @override
@@ -43,6 +47,7 @@ class _LoginPageState extends State<LoginPage> {
   int _resendSeconds = 0;
   bool _isSending = false;
   bool _isVerifying = false;
+  bool _isEnteringDemo = false;
 
   @override
   void dispose() {
@@ -171,6 +176,16 @@ class _LoginPageState extends State<LoginPage> {
         });
   }
 
+  Future<void> _enterDemo() async {
+    if (_isEnteringDemo) return;
+    setState(() => _isEnteringDemo = true);
+    try {
+      await widget.onEnterDemo();
+    } finally {
+      if (mounted) setState(() => _isEnteringDemo = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,6 +210,8 @@ class _LoginPageState extends State<LoginPage> {
                               child: _LoginForm(
                                 phoneController: _phoneController,
                                 codeController: _codeController,
+                                demoMode: widget.demoMode,
+                                isEnteringDemo: _isEnteringDemo,
                                 challengeCreated: _challengeId != null,
                                 showExampleCode: widget.showExampleCode,
                                 expiresIn: _expiresIn,
@@ -205,6 +222,7 @@ class _LoginPageState extends State<LoginPage> {
                                 onPhoneChanged: _onPhoneChanged,
                                 onSendCode: _sendCode,
                                 onVerifyCode: _verifyCode,
+                                onEnterDemo: _enterDemo,
                               ),
                             ),
                           ],
@@ -218,6 +236,8 @@ class _LoginPageState extends State<LoginPage> {
                           _LoginForm(
                             phoneController: _phoneController,
                             codeController: _codeController,
+                            demoMode: widget.demoMode,
+                            isEnteringDemo: _isEnteringDemo,
                             challengeCreated: _challengeId != null,
                             showExampleCode: widget.showExampleCode,
                             expiresIn: _expiresIn,
@@ -228,6 +248,7 @@ class _LoginPageState extends State<LoginPage> {
                             onPhoneChanged: _onPhoneChanged,
                             onSendCode: _sendCode,
                             onVerifyCode: _verifyCode,
+                            onEnterDemo: _enterDemo,
                           ),
                         ],
                       ),
@@ -244,6 +265,8 @@ class _LoginForm extends StatelessWidget {
   const _LoginForm({
     required this.phoneController,
     required this.codeController,
+    required this.demoMode,
+    required this.isEnteringDemo,
     required this.challengeCreated,
     required this.showExampleCode,
     required this.expiresIn,
@@ -254,10 +277,13 @@ class _LoginForm extends StatelessWidget {
     required this.onPhoneChanged,
     required this.onSendCode,
     required this.onVerifyCode,
+    required this.onEnterDemo,
   });
 
   final TextEditingController phoneController;
   final TextEditingController codeController;
+  final bool demoMode;
+  final bool isEnteringDemo;
   final bool challengeCreated;
   final bool showExampleCode;
   final int expiresIn;
@@ -268,9 +294,33 @@ class _LoginForm extends StatelessWidget {
   final ValueChanged<String> onPhoneChanged;
   final VoidCallback onSendCode;
   final VoidCallback onVerifyCode;
+  final VoidCallback onEnterDemo;
 
   @override
   Widget build(BuildContext context) {
+    if (demoMode) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('欢迎体验 Easylife',
+              style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 10),
+          Text(
+            '这是作品集演示版本。无需手机号或验证码，体验数据仅保存在当前设备。',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 28),
+          FilledButton.icon(
+            key: const Key('enter-demo-button'),
+            onPressed: isEnteringDemo ? null : onEnterDemo,
+            icon: const Icon(Icons.play_arrow_rounded),
+            label: Text(isEnteringDemo ? '正在进入…' : '进入作品演示'),
+          ),
+        ],
+      );
+    }
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       crossAxisAlignment: CrossAxisAlignment.stretch,

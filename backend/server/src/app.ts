@@ -1,9 +1,8 @@
-import express, {
-  type RequestHandler,
-  type Response,
-} from "express";
+import express, { type RequestHandler, type Response } from "express";
 
 import type { AppConfig } from "./config.js";
+import { AuthServiceError, type AuthService } from "./auth/auth-service.js";
+import { FixedAuthService } from "./auth/fixed-auth-service.js";
 import {
   contractExample,
   contractVersion,
@@ -19,14 +18,12 @@ import {
 } from "./http.js";
 import { FixedEmotionProvider } from "./providers/fixed-emotion-provider.js";
 import type { EmotionProvider } from "./providers/emotion-provider.js";
-import type {
-  EmotionAnalyzeResponse,
-  JsonObject,
-} from "./types.js";
+import type { EmotionAnalyzeResponse, JsonObject } from "./types.js";
 
 interface AppDependencies {
   config: AppConfig;
   emotionProvider?: EmotionProvider;
+  authService?: AuthService;
 }
 
 function validateBody(schemaName: string): RequestHandler {
@@ -55,8 +52,21 @@ export function createApp(dependencies: AppDependencies) {
   const emotionProvider =
     dependencies.emotionProvider ?? new FixedEmotionProvider();
   const { config } = dependencies;
+  if (
+    config.nodeEnv !== "development" &&
+    config.nodeEnv !== "test" &&
+    dependencies.authService === undefined
+  ) {
+    throw new Error(
+      "A database-backed AuthService is required outside development and test",
+    );
+  }
+  const authService = dependencies.authService ?? new FixedAuthService(config);
 
   app.disable("x-powered-by");
+  if (config.auth?.trustProxy === true) {
+    app.set("trust proxy", 1);
+  }
   app.use(localCors);
   app.use(requestContext(config));
   app.use(express.json({ limit: "256kb" }));
@@ -64,7 +74,7 @@ export function createApp(dependencies: AppDependencies) {
   app.get("/v1/health", (_request, response) => {
     response.json({
       status: "ok",
-      service: "easylife-fixed-api",
+      service: "easylife-api",
       contractVersion,
     });
   });
@@ -77,8 +87,21 @@ export function createApp(dependencies: AppDependencies) {
       "SMS_PROVIDER_UNAVAILABLE",
     ]),
     validateBody("SendSmsCodeRequest"),
-    (_request, response) => {
-      sendExample(response, 200, "SendSmsCodeResponse");
+    async (request, response) => {
+      try {
+        const result = await authService.sendSmsCode(
+          request.body as JsonObject,
+          request,
+        );
+        response.json(result);
+      } catch (error) {
+        sendAuthError(
+          response,
+          request.requestId,
+          error,
+          "SMS_PROVIDER_UNAVAILABLE",
+        );
+      }
     },
   );
 
@@ -91,57 +114,61 @@ export function createApp(dependencies: AppDependencies) {
       "VERIFICATION_ATTEMPTS_EXCEEDED",
     ]),
     validateBody("VerifySmsCodeRequest"),
-    (request, response) => {
-      if (
-        config.enableTestTriggers &&
-        request.header("X-Easylife-Test-Sms-Purpose") ===
-          "account_deletion"
-      ) {
-        response.json({
-          purpose: "account_deletion",
-          deletionToken:
-            "example-deletion-token-with-at-least-twenty-characters",
-          expiresIn: 600,
-        });
-        return;
+    async (request, response) => {
+      try {
+        const result = await authService.verifySmsCode(
+          request.body as JsonObject,
+          request,
+        );
+        response.json(result);
+      } catch (error) {
+        sendAuthError(response, request.requestId, error, "SMS_CODE_EXPIRED");
       }
-
-      sendExample(response, 200, "LoginVerificationResponse");
     },
   );
 
   app.post(
     "/v1/auth/token/refresh",
-    testErrorTrigger(config, [
-      "VALIDATION_ERROR",
-      "INVALID_REFRESH_TOKEN",
-    ]),
+    testErrorTrigger(config, ["VALIDATION_ERROR", "INVALID_REFRESH_TOKEN"]),
     validateBody("RefreshTokenRequest"),
-    (_request, response) => {
-      response.json({
-        accessToken:
-          "rotated-access-token-with-at-least-twenty-characters",
-        accessTokenExpiresIn: 900,
-        refreshToken:
-          "rotated-refresh-token-with-at-least-twenty-characters",
-        refreshTokenExpiresIn: 2592000,
-      });
+    async (request, response) => {
+      try {
+        const result = await authService.refreshTokens(
+          request.body as JsonObject,
+        );
+        response.json(result);
+      } catch (error) {
+        sendAuthError(
+          response,
+          request.requestId,
+          error,
+          "INVALID_REFRESH_TOKEN",
+        );
+      }
     },
   );
 
   app.post(
     "/v1/auth/logout",
-    requireBearerToken(config),
+    requireBearerToken(authService, { allowRevoked: true }),
     testErrorTrigger(config, ["VALIDATION_ERROR"]),
     validateBody("LogoutRequest"),
-    (_request, response) => {
-      response.status(204).send();
+    async (request, response) => {
+      try {
+        await authService.logout(
+          requireAuthContext(request),
+          request.body as JsonObject,
+        );
+        response.status(204).send();
+      } catch (error) {
+        sendAuthError(response, request.requestId, error, "UNAUTHORIZED");
+      }
     },
   );
 
   app.post(
     "/v1/emotion/analyze",
-    requireBearerToken(config),
+    requireBearerToken(authService),
     testErrorTrigger(config, [
       "VALIDATION_ERROR",
       "PAYLOAD_TOO_LARGE",
@@ -168,22 +195,15 @@ export function createApp(dependencies: AppDependencies) {
         response.json(result satisfies EmotionAnalyzeResponse);
       } catch (error) {
         void error;
-        sendError(
-          response,
-          request.requestId,
-          "AI_PROVIDER_UNAVAILABLE",
-        );
+        sendError(response, request.requestId, "AI_PROVIDER_UNAVAILABLE");
       }
     },
   );
 
   app.post(
     "/v1/sync/push",
-    requireBearerToken(config),
-    testErrorTrigger(config, [
-      "VALIDATION_ERROR",
-      "PAYLOAD_TOO_LARGE",
-    ]),
+    requireBearerToken(authService),
+    testErrorTrigger(config, ["VALIDATION_ERROR", "PAYLOAD_TOO_LARGE"]),
     validateBody("SyncPushRequest"),
     (_request, response) => {
       sendExample(response, 200, "SyncPushResponse");
@@ -192,7 +212,7 @@ export function createApp(dependencies: AppDependencies) {
 
   app.get(
     "/v1/sync/pull",
-    requireBearerToken(config),
+    requireBearerToken(authService),
     testErrorTrigger(config, ["INVALID_SYNC_CURSOR"]),
     (request, response) => {
       const cursor = request.query.cursor;
@@ -219,14 +239,27 @@ export function createApp(dependencies: AppDependencies) {
 
   app.delete(
     "/v1/me/account",
-    requireBearerToken(config),
+    requireBearerToken(authService),
     testErrorTrigger(config, [
       "VALIDATION_ERROR",
       "DELETION_VERIFICATION_EXPIRED",
     ]),
     validateBody("DeleteAccountRequest"),
-    (_request, response) => {
-      sendExample(response, 202, "DeleteAccountResponse");
+    async (request, response) => {
+      try {
+        const result = await authService.deleteAccount(
+          requireAuthContext(request),
+          request.body as JsonObject,
+        );
+        response.status(202).json(result);
+      } catch (error) {
+        sendAuthError(
+          response,
+          request.requestId,
+          error,
+          "DELETION_VERIFICATION_EXPIRED",
+        );
+      }
     },
   );
 
@@ -243,4 +276,24 @@ export function createApp(dependencies: AppDependencies) {
   app.use(errorHandler);
 
   return app;
+}
+
+function requireAuthContext(request: express.Request) {
+  if (request.auth === undefined) {
+    throw new AuthServiceError("UNAUTHORIZED");
+  }
+  return request.auth;
+}
+
+function sendAuthError(
+  response: Response,
+  requestId: string,
+  error: unknown,
+  fallback: import("./types.js").ErrorCode,
+): void {
+  sendError(
+    response,
+    requestId,
+    error instanceof AuthServiceError ? error.code : fallback,
+  );
 }

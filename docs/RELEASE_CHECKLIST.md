@@ -1,6 +1,6 @@
 # MVP 内测发布验收
 
-版本：`0.2.0+2`
+版本：`0.3.0+3`
 
 首发平台：iOS。Android 环境与发布暂缓，不作为本阶段阻塞项。
 
@@ -11,10 +11,17 @@
 - 核心 models 支持版本化 JSON 键名与兼容默认值。
 - 损坏或不兼容的本地 JSON 会回退到可用初始数据，不阻塞启动。
 - 情绪分析支持真实 HTTP 后端，并在异常时回退本地 Mock。
+- PostgreSQL 认证后端支持短信 challenge、自动注册、会话校验、Refresh Token
+  轮换、退出和账号注销任务。
+- 作品集构建可使用 `EASYLIFE_DEMO_MODE=true` 无手机号进入本地演示。
+- 长期记忆支持用户查看、添加、修改和删除；原始情绪日记不在记忆卡片中展示。
+- 陪伴、饮食回顾、每日运势和 AI Prompt 已完成本轮产品与成本优化。
 - Android 正式 Manifest 已声明网络权限。
 - `flutter analyze` 通过。
 - `flutter test` 通过。
 - `flutter build web --release` 通过。
+- `flutter build web --release --dart-define=EASYLIFE_DEMO_MODE=true` 作为
+  `v0.3.0-portfolio` 的可复现作品集构建命令。
 
 ## 外部环境阻塞
 

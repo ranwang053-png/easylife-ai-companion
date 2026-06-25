@@ -37,6 +37,7 @@ declare global {
   namespace Express {
     interface Request {
       requestId: string;
+      auth?: import("./auth/auth-service.js").AuthContext;
     }
   }
 }

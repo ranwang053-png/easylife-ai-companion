@@ -1,7 +1,7 @@
 # Easylife AI 生活陪伴 App
 
 Flutter 手机端 MVP，当前聚焦用户画像、桌宠陪伴、每日运势、情绪记录、饮食体重，
-以及对应的 Mock 数据、底部导航和快捷记录流程。
+并提供本地持久化、作品集演示模式和 PostgreSQL 认证后端。
 
 完整交付说明见 [`DELIVERY.md`](DELIVERY.md)。
 
@@ -28,6 +28,15 @@ flutter analyze
 flutter test
 ```
 
+## 作品集演示构建
+
+```bash
+flutter build web --release \
+  --dart-define=EASYLIFE_DEMO_MODE=true
+```
+
+演示模式不要求手机号和短信验证码，数据只保存在当前设备。正式构建默认不启用该开关。
+
 ## Agent 架构
 
 ```text
@@ -35,7 +44,7 @@ Flutter App
     ↓
 AgentService
     ↓
-MockAgentService / 未来 Node.js + Express API
+MockAgentService / Node.js + Express API
 ```
 
 页面只调用 `AgentService` 的结构化业务方法，不包含 Prompt 或 AI 判断逻辑。
@@ -54,6 +63,7 @@ flutter run \
   --dart-define=EASYLIFE_API_BASE_URL=https://api.example.com
 ```
 
-未配置或后端失败时自动回退本地 Mock。接口契约见
+未配置或后端失败时自动回退本地 Mock。后端认证、数据库迁移与运行说明见
+[`backend/server/README.md`](backend/server/README.md)，接口契约见
 [`docs/AI_BACKEND.md`](docs/AI_BACKEND.md)，打包验收见
 [`docs/RELEASE_CHECKLIST.md`](docs/RELEASE_CHECKLIST.md)。

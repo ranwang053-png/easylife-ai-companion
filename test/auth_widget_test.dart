@@ -170,6 +170,30 @@ void main() {
     expect(find.byKey(const Key('phone-field')), findsOneWidget);
   });
 
+  testWidgets('portfolio demo enters app without SMS authentication',
+      (tester) async {
+    await tester.pumpWidget(
+      CompanyApp.production(
+        authService: const UnavailableAuthService(),
+        authSessionStore: MemoryAuthSessionStore(),
+        localStore: MemoryLocalStore(),
+        demoMode: true,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('enter-demo-button')), findsOneWidget);
+    expect(find.byKey(const Key('phone-field')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('enter-demo-button')));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Easylife'), findsOneWidget);
+    expect(find.byKey(const Key('phone-field')), findsNothing);
+  });
+
   testWidgets('SMS login shows five-minute validity and resend countdown',
       (tester) async {
     await tester.pumpWidget(

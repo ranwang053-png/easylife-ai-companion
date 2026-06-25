@@ -17,6 +17,12 @@ const dietPreferenceOptions = [
 
 const recentGoalOptions = ['减脂', '健身', '创作', '抗炎', '无'];
 
+const regionPickerTextStyle = TextStyle(
+  color: AppColors.ink,
+  fontSize: 16,
+  fontWeight: FontWeight.w500,
+);
+
 Future<DateTime?> showBirthDateTimePicker(
   BuildContext context, {
   required DateTime initialValue,
@@ -38,6 +44,14 @@ Future<String?> showRegionPicker(
     height: 390,
     itemExtent: 48,
     borderRadius: 24,
+    itemBuilder: (value, _, __) => Center(
+      child: Text(
+        value,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: regionPickerTextStyle,
+      ),
+    ),
     cancelWidget: const Text('取消'),
     confirmWidget: const Text(
       '完成',

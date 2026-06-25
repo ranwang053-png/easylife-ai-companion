@@ -41,6 +41,7 @@ class HealthPageState extends State<HealthPage> {
   final List<WeightRecord> _weights = [];
 
   var _weight = 52.3;
+  var _targetWeight = 48.0;
   var _hasSeenDietGuide = false;
   var _isLoadingData = true;
   MealPlanSuggestion? _mealPlan;
@@ -56,9 +57,11 @@ class HealthPageState extends State<HealthPage> {
       widget.journalRepository.loadMealRecords(),
       widget.journalRepository.loadWeightRecords(),
       widget.journalRepository.hasSeenDietGuide(),
+      widget.userProfileService.loadProfile(),
     ]);
     final meals = results[0] as List<MealRecord>;
     final weights = results[1] as List<WeightRecord>;
+    final profile = results[3] as UserProfile;
     if (!mounted) return;
     setState(() {
       _foodLogs
@@ -69,6 +72,7 @@ class HealthPageState extends State<HealthPage> {
         ..addAll(weights);
       if (_weights.isNotEmpty) _weight = _weights.last.weight;
       _hasSeenDietGuide = results[2] as bool;
+      _targetWeight = profile.targetWeight;
       _isLoadingData = false;
     });
     await _refreshMealPlan();
@@ -164,6 +168,14 @@ class HealthPageState extends State<HealthPage> {
     await widget.journalRepository.setHasSeenDietGuide(true);
   }
 
+  Future<void> _openDietTimeline() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) => DietTimelinePage(records: List.of(_foodLogs)),
+      ),
+    );
+  }
+
   Future<void> _refreshMealPlan() async {
     final profile = await widget.userProfileService.loadProfile();
     final plan = await widget.agentService.generateMealPlan(_foodLogs, profile);
@@ -196,22 +208,14 @@ class HealthPageState extends State<HealthPage> {
         maxWidth: 920,
         bottom: ResponsivePage.isWide(context) ? 40 : 126,
         children: [
-          PageHeader(
+          const PageHeader(
             title: '饮食体重',
             subtitle: '不用称重，轻松记下今天吃过的东西',
-            trailing: IconButton.filledTonal(
-              onPressed: _recordWeight,
-              tooltip: '新增体重',
-              style: IconButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppColors.primaryDark,
-              ),
-              icon: const Icon(Icons.add_chart_rounded),
-            ),
           ),
           const SizedBox(height: 20),
           _WeightCard(
             weight: _weight,
+            targetWeight: _targetWeight,
             points: _weights,
             onAdd: _recordWeight,
           ),
@@ -225,7 +229,7 @@ class HealthPageState extends State<HealthPage> {
             plan: _mealPlan,
           ),
           const SizedBox(height: 20),
-          _RecordFoodBanner(onTap: _openDietRecord),
+          _DietTimelineEntryCard(onTap: _openDietTimeline),
           const SizedBox(height: 20),
           SoftCard(
             color: AppColors.surface,
@@ -266,62 +270,33 @@ class HealthPageState extends State<HealthPage> {
   }
 }
 
-class _RecordFoodBanner extends StatelessWidget {
-  const _RecordFoodBanner({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SoftCard(
-      color: AppColors.primaryMist,
-      borderColor: AppColors.outlineSoft,
-      onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            width: 54,
-            height: 54,
-            decoration: const BoxDecoration(
-              color: AppColors.softGreen,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.camera_alt_outlined),
-          ),
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '拍照或写一句话记录',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'AI 识别热量，再制作成食物贴纸',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ),
-          ),
-          const Icon(Icons.arrow_forward_rounded),
-        ],
-      ),
-    );
-  }
-}
-
 class _WeightCard extends StatelessWidget {
   const _WeightCard({
     required this.weight,
+    required this.targetWeight,
     required this.points,
     required this.onAdd,
   });
 
   final double weight;
+  final double targetWeight;
   final List<WeightRecord> points;
   final VoidCallback onAdd;
+
+  String _changeLabel(int days) {
+    if (points.length < 2) return '${days}天 0.0 kg';
+    final latest = points.last;
+    final earliestDate = latest.date.subtract(Duration(days: days));
+    final start = points.firstWhere(
+      (point) => !point.date.isBefore(earliestDate),
+      orElse: () => points.first,
+    );
+    final change = latest.weight - start.weight;
+    final value = change > 0
+        ? '+${change.toStringAsFixed(1)}'
+        : change.toStringAsFixed(1);
+    return '$days天 $value kg';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -361,22 +336,24 @@ class _WeightCard extends StatelessWidget {
                   ],
                 ),
               ),
-              OutlinedButton.icon(
-                onPressed: onAdd,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('新增'),
+              Tooltip(
+                message: '新增体重',
+                child: OutlinedButton.icon(
+                  onPressed: onAdd,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('新增体重'),
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Row(
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              const _TrendBadge(),
-              const Spacer(),
-              Text(
-                '最近 7 天',
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
+              _WeightMetaBadge('目标体重 ${targetWeight.toStringAsFixed(1)} kg'),
+              _WeightMetaBadge(_changeLabel(7)),
+              _WeightMetaBadge(_changeLabel(30)),
             ],
           ),
           const SizedBox(height: 16),
@@ -391,8 +368,10 @@ class _WeightCard extends StatelessWidget {
   }
 }
 
-class _TrendBadge extends StatelessWidget {
-  const _TrendBadge();
+class _WeightMetaBadge extends StatelessWidget {
+  const _WeightMetaBadge(this.label);
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -402,11 +381,648 @@ class _TrendBadge extends StatelessWidget {
         color: AppColors.softGreen,
         borderRadius: BorderRadius.circular(99),
       ),
-      child: const Text(
-        '7 天 -0.6 kg',
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
       ),
     );
+  }
+}
+
+class _DietTimelineEntryCard extends StatelessWidget {
+  const _DietTimelineEntryCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return SoftCard(
+      color: AppColors.surface,
+      borderColor: AppColors.outlineSoft,
+      onTap: onTap,
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: const BoxDecoration(
+              color: AppColors.softGreen,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.timeline_rounded, color: AppColors.ink),
+          ),
+          const SizedBox(width: 13),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('饮食回顾', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  '按日、周、月查看复盘和下一期建议',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.arrow_forward_rounded),
+        ],
+      ),
+    );
+  }
+}
+
+enum _DietTimelineRange {
+  day('日'),
+  week('周'),
+  month('月');
+
+  const _DietTimelineRange(this.label);
+
+  final String label;
+}
+
+class DietTimelinePage extends StatefulWidget {
+  const DietTimelinePage({required this.records, super.key});
+
+  final List<MealRecord> records;
+
+  @override
+  State<DietTimelinePage> createState() => _DietTimelinePageState();
+}
+
+class _DietTimelinePageState extends State<DietTimelinePage> {
+  var _range = _DietTimelineRange.day;
+
+  DateTime get _today {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day);
+  }
+
+  DateTime _startOfWeek(DateTime date) =>
+      date.subtract(Duration(days: date.weekday - 1));
+
+  ({DateTime start, DateTime end}) get _currentPeriod {
+    return switch (_range) {
+      _DietTimelineRange.day => (
+          start: _today,
+          end: _today.add(const Duration(days: 1)),
+        ),
+      _DietTimelineRange.week => (
+          start: _startOfWeek(_today),
+          end: _startOfWeek(_today).add(const Duration(days: 7)),
+        ),
+      _DietTimelineRange.month => (
+          start: DateTime(_today.year, _today.month),
+          end: DateTime(_today.year, _today.month + 1),
+        ),
+    };
+  }
+
+  ({DateTime start, DateTime end}) get _previousPeriod {
+    final current = _currentPeriod;
+    return switch (_range) {
+      _DietTimelineRange.day => (
+          start: current.start.subtract(const Duration(days: 1)),
+          end: current.start,
+        ),
+      _DietTimelineRange.week => (
+          start: current.start.subtract(const Duration(days: 7)),
+          end: current.start,
+        ),
+      _DietTimelineRange.month => (
+          start: DateTime(current.start.year, current.start.month - 1),
+          end: current.start,
+        ),
+    };
+  }
+
+  List<MealRecord> _recordsFor(({DateTime start, DateTime end}) period) {
+    return widget.records
+        .where(
+          (record) =>
+              !record.date.isBefore(period.start) &&
+              record.date.isBefore(period.end),
+        )
+        .toList()
+      ..sort((a, b) => a.recordTime.compareTo(b.recordTime));
+  }
+
+  String _periodLabel(({DateTime start, DateTime end}) period) {
+    return switch (_range) {
+      _DietTimelineRange.day => _dayLabel(period.start),
+      _DietTimelineRange.week =>
+        '${period.start.month}/${period.start.day} - ${period.end.subtract(const Duration(days: 1)).month}/${period.end.subtract(const Duration(days: 1)).day}',
+      _DietTimelineRange.month => '${period.start.year}年${period.start.month}月',
+    };
+  }
+
+  String _dayLabel(DateTime date) {
+    if (date == _today) return '今天';
+    if (date == _today.subtract(const Duration(days: 1))) return '昨天';
+    if (date == _today.add(const Duration(days: 1))) return '明天';
+    return '${date.month}月${date.day}日';
+  }
+
+  String get _previousTitle => switch (_range) {
+        _DietTimelineRange.day => '前一日数据总结',
+        _DietTimelineRange.week => '前一周数据总结',
+        _DietTimelineRange.month => '前一月数据总结',
+      };
+
+  String get _currentTitle => switch (_range) {
+        _DietTimelineRange.day => '当日数据总结',
+        _DietTimelineRange.week => '当周数据总结',
+        _DietTimelineRange.month => '当月数据总结',
+      };
+
+  String get _nextTitle => switch (_range) {
+        _DietTimelineRange.day => '下一日饮食建议',
+        _DietTimelineRange.week => '下一周饮食建议',
+        _DietTimelineRange.month => '下一月饮食建议',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final currentPeriod = _currentPeriod;
+    final previousPeriod = _previousPeriod;
+    final currentRecords = _recordsFor(currentPeriod);
+    final previousRecords = _recordsFor(previousPeriod);
+
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: ResponsivePageList(
+          maxWidth: 820,
+          bottom: 40,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  tooltip: '返回',
+                  icon: const Icon(Icons.arrow_back_rounded),
+                ),
+                const Spacer(),
+                Text(_periodLabel(currentPeriod),
+                    style: Theme.of(context).textTheme.labelMedium),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const PageHeader(
+              title: '饮食回顾',
+              subtitle: '上一期、本期和下一期建议，帮你看见饮食结构',
+            ),
+            const SizedBox(height: 16),
+            _DietRangeSelector(
+              selected: _range,
+              onChanged: (range) => setState(() => _range = range),
+            ),
+            const SizedBox(height: 16),
+            _DietReviewCard(
+              title: _previousTitle,
+              period: _periodLabel(previousPeriod),
+              records: previousRecords,
+              range: _range,
+            ),
+            const SizedBox(height: 14),
+            _DietReviewCard(
+              title: _currentTitle,
+              period: _periodLabel(currentPeriod),
+              records: currentRecords,
+              range: _range,
+              highlighted: true,
+            ),
+            const SizedBox(height: 14),
+            _DietNextAdviceCard(
+              title: _nextTitle,
+              records: currentRecords,
+              range: _range,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DietRangeSelector extends StatelessWidget {
+  const _DietRangeSelector({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final _DietTimelineRange selected;
+  final ValueChanged<_DietTimelineRange> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: AppColors.primaryMist,
+        borderRadius: BorderRadius.circular(99),
+        border: Border.all(color: AppColors.outlineSoft),
+      ),
+      child: Row(
+        children: [
+          for (final range in _DietTimelineRange.values)
+            Expanded(
+              child: _RangeButton(
+                range: range,
+                selected: selected == range,
+                onTap: () => onChanged(range),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RangeButton extends StatelessWidget {
+  const _RangeButton({
+    required this.range,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final _DietTimelineRange range;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? Colors.white : Colors.transparent,
+      borderRadius: BorderRadius.circular(99),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(99),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Text(
+            range.label,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: selected ? AppColors.primaryDark : AppColors.mutedInk,
+                ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DietReviewCard extends StatelessWidget {
+  const _DietReviewCard({
+    required this.title,
+    required this.period,
+    required this.records,
+    required this.range,
+    this.highlighted = false,
+  });
+
+  final String title;
+  final String period;
+  final List<MealRecord> records;
+  final _DietTimelineRange range;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    final review = _DietReview.fromRecords(records);
+
+    return SoftCard(
+      color: highlighted ? AppColors.primaryMist : AppColors.surface,
+      borderColor: AppColors.outlineSoft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child:
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+              ),
+              Text(period, style: Theme.of(context).textTheme.labelMedium),
+            ],
+          ),
+          const SizedBox(height: 13),
+          Row(
+            children: [
+              Expanded(
+                child: _TimelineMetric(
+                  label: '摄入',
+                  value: '${review.totalCalories}',
+                  unit: 'kcal',
+                ),
+              ),
+              Expanded(
+                child: _TimelineMetric(
+                  label: '记录',
+                  value: '${review.recordCount}',
+                  unit: '次',
+                ),
+              ),
+              Expanded(
+                child: _TimelineMetric(
+                  label: '日均',
+                  value: '${review.dailyAverage(range)}',
+                  unit: 'kcal',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Text(
+            review.summary(range),
+            style:
+                Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.55),
+          ),
+          const SizedBox(height: 14),
+          _DietInsightWrap(review: review),
+        ],
+      ),
+    );
+  }
+}
+
+class _DietNextAdviceCard extends StatelessWidget {
+  const _DietNextAdviceCard({
+    required this.title,
+    required this.records,
+    required this.range,
+  });
+
+  final String title;
+  final List<MealRecord> records;
+  final _DietTimelineRange range;
+
+  @override
+  Widget build(BuildContext context) {
+    final review = _DietReview.fromRecords(records);
+
+    return SoftCard(
+      color: AppColors.surface,
+      borderColor: AppColors.outlineSoft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: const BoxDecoration(
+                  color: AppColors.softYellow,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lightbulb_outline_rounded, size: 20),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child:
+                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          for (final advice in review.nextSuggestions(range)) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('• ',
+                    style: TextStyle(color: AppColors.primaryDark)),
+                Expanded(
+                  child: Text(
+                    advice,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodyMedium
+                        ?.copyWith(height: 1.55),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TimelineMetric extends StatelessWidget {
+  const _TimelineMetric({
+    required this.label,
+    required this.value,
+    required this.unit,
+  });
+
+  final String label;
+  final String value;
+  final String unit;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: Theme.of(context).textTheme.labelMedium),
+        const SizedBox(height: 4),
+        Text.rich(
+          TextSpan(
+            text: value,
+            style: Theme.of(context).textTheme.titleLarge,
+            children: [
+              TextSpan(
+                text: ' $unit',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.secondaryInk,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DietInsightWrap extends StatelessWidget {
+  const _DietInsightWrap({required this.review});
+
+  final _DietReview review;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _DietInsightChip(label: '最常吃', value: review.favoriteFood),
+        _DietInsightChip(label: '热量最高', value: review.highestFoodLabel),
+        _DietInsightChip(label: '摄入最多', value: review.highestDayLabel),
+        _DietInsightChip(label: '高频餐次', value: review.topMealLabel),
+      ],
+    );
+  }
+}
+
+class _DietInsightChip extends StatelessWidget {
+  const _DietInsightChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .78),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.outlineSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 3),
+          Text(value, style: Theme.of(context).textTheme.labelMedium),
+        ],
+      ),
+    );
+  }
+}
+
+class _DietReview {
+  const _DietReview({
+    required this.totalCalories,
+    required this.recordCount,
+    required this.favoriteFood,
+    required this.highestFoodLabel,
+    required this.highestDayLabel,
+    required this.topMealLabel,
+    required this.topMealType,
+  });
+
+  final int totalCalories;
+  final int recordCount;
+  final String favoriteFood;
+  final String highestFoodLabel;
+  final String highestDayLabel;
+  final String topMealLabel;
+  final MealType? topMealType;
+
+  static _DietReview fromRecords(List<MealRecord> records) {
+    if (records.isEmpty) {
+      return const _DietReview(
+        totalCalories: 0,
+        recordCount: 0,
+        favoriteFood: '暂无',
+        highestFoodLabel: '暂无',
+        highestDayLabel: '暂无',
+        topMealLabel: '暂无',
+        topMealType: null,
+      );
+    }
+
+    final totalCalories = records.fold<int>(
+      0,
+      (sum, record) => sum + record.estimatedCalories,
+    );
+    final favoriteFood = _topByCount(records.map((record) => record.foodName));
+    final highestFood = records.reduce(
+      (current, next) =>
+          current.estimatedCalories >= next.estimatedCalories ? current : next,
+    );
+    final mealTypeName = _topByCount(
+      records.map((record) => record.mealType.name),
+    );
+    final topMealType = MealType.values.firstWhere(
+      (mealType) => mealType.name == mealTypeName,
+    );
+    final dayTotals = <DateTime, int>{};
+    for (final record in records) {
+      final date =
+          DateTime(record.date.year, record.date.month, record.date.day);
+      dayTotals[date] = (dayTotals[date] ?? 0) + record.estimatedCalories;
+    }
+    final highestDay = dayTotals.entries.reduce(
+      (current, next) => current.value >= next.value ? current : next,
+    );
+
+    return _DietReview(
+      totalCalories: totalCalories,
+      recordCount: records.length,
+      favoriteFood: favoriteFood,
+      highestFoodLabel:
+          '${highestFood.foodName} ${highestFood.estimatedCalories} kcal',
+      highestDayLabel:
+          '${highestDay.key.month}/${highestDay.key.day} ${highestDay.value} kcal',
+      topMealLabel: topMealType.label,
+      topMealType: topMealType,
+    );
+  }
+
+  static String _topByCount(Iterable<String> values) {
+    final counts = <String, int>{};
+    for (final value in values) {
+      counts[value] = (counts[value] ?? 0) + 1;
+    }
+    return counts.entries
+        .reduce((current, next) => current.value >= next.value ? current : next)
+        .key;
+  }
+
+  int dailyAverage(_DietTimelineRange range) {
+    final days = switch (range) {
+      _DietTimelineRange.day => 1,
+      _DietTimelineRange.week => 7,
+      _DietTimelineRange.month => 30,
+    };
+    return recordCount == 0 ? 0 : (totalCalories / days).round();
+  }
+
+  String summary(_DietTimelineRange range) {
+    if (recordCount == 0) {
+      return '这段时间还没有饮食记录。先从一餐开始记录，之后 easy 会帮你看见饮食结构里的变化。';
+    }
+    final scope = switch (range) {
+      _DietTimelineRange.day => '这一天',
+      _DietTimelineRange.week => '这一周',
+      _DietTimelineRange.month => '这个月',
+    };
+    return '$scope共记录了 $recordCount 次饮食，摄入约 $totalCalories kcal。最常出现的是 $favoriteFood，热量最高的是 $highestFoodLabel，摄入最多的一天是 $highestDayLabel。';
+  }
+
+  List<String> nextSuggestions(_DietTimelineRange range) {
+    if (recordCount == 0) {
+      return const [
+        '先记录下一餐吃了什么，不用追求完整，积累几次后再看结构。',
+        '如果方便，可以补充份量或图片，这会让后续热量估算更稳定。',
+      ];
+    }
+    final scope = switch (range) {
+      _DietTimelineRange.day => '明天',
+      _DietTimelineRange.week => '下一周',
+      _DietTimelineRange.month => '下个月',
+    };
+    final mealAdvice = switch (topMealType) {
+      MealType.snack => '加餐出现比较多，$scope可以优先把零食换成水果、酸奶或坚果小份。',
+      MealType.dinner => '晚餐占比偏明显，$scope可以把主食和油脂稍微前移到午餐。',
+      MealType.lunch => '午餐是主要摄入点，$scope可以保留蛋白质，同时补一份蔬菜。',
+      MealType.breakfast => '早餐记录比较集中，$scope可以继续保持稳定开场，再观察午晚餐节奏。',
+      null => '$scope先保持记录，积累更多数据后再看结构。',
+    };
+    return [
+      mealAdvice,
+      '$scope不用追求吃得完美，先观察热量最高的食物是否真的带来了足够的饱腹感。',
+      '下一次记录时，尽量补一句份量描述，比如“半碗”“一杯”“一小份”。',
+    ];
   }
 }
 

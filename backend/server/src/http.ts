@@ -1,11 +1,8 @@
-import { randomUUID, timingSafeEqual } from "node:crypto";
-import type {
-  ErrorRequestHandler,
-  RequestHandler,
-  Response,
-} from "express";
+import { randomUUID } from "node:crypto";
+import type { ErrorRequestHandler, RequestHandler, Response } from "express";
 
 import type { AppConfig } from "./config.js";
+import type { AuthService } from "./auth/auth-service.js";
 import type { ErrorBody, ErrorCode } from "./types.js";
 
 const localPreviewOriginPattern = /^https?:\/\/(127\.0\.0\.1|localhost):\d+$/;
@@ -134,32 +131,30 @@ export const localCors: RequestHandler = (request, response, next) => {
   next();
 };
 
-export function requireBearerToken(config: AppConfig): RequestHandler {
-  return (request, response, next) => {
+export function requireBearerToken(
+  authService: AuthService,
+  options: { allowRevoked?: boolean } = {},
+): RequestHandler {
+  return async (request, response, next) => {
     const authorization = request.header("Authorization");
     const token = authorization?.match(/^Bearer ([^\s]+)$/)?.[1];
-    const valid =
-      token !== undefined &&
-      config.fixedAccessTokens.some((candidate) =>
-        constantTimeEquals(token, candidate),
-      );
-
-    if (!valid) {
+    if (token === undefined) {
       sendError(response, request.requestId, "UNAUTHORIZED");
       return;
     }
 
-    next();
+    try {
+      const context = await authService.authenticateAccessToken(token, options);
+      if (context === null) {
+        sendError(response, request.requestId, "UNAUTHORIZED");
+        return;
+      }
+      request.auth = context;
+      next();
+    } catch {
+      sendError(response, request.requestId, "UNAUTHORIZED");
+    }
   };
-}
-
-function constantTimeEquals(value: string, expected: string): boolean {
-  const valueBuffer = Buffer.from(value);
-  const expectedBuffer = Buffer.from(expected);
-  return (
-    valueBuffer.length === expectedBuffer.length &&
-    timingSafeEqual(valueBuffer, expectedBuffer)
-  );
 }
 
 export function sendError(
@@ -199,11 +194,7 @@ export function testErrorTrigger(
       requestedCode !== undefined &&
       allowedCodes.includes(requestedCode as ErrorCode)
     ) {
-      sendError(
-        response,
-        request.requestId,
-        requestedCode as ErrorCode,
-      );
+      sendError(response, request.requestId, requestedCode as ErrorCode);
       return;
     }
 

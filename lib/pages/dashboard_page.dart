@@ -62,7 +62,7 @@ class _DashboardPageState extends State<DashboardPage> {
           final bottom = constraints.maxWidth >= 900 ? 40.0 : 148.0;
           final companion = _PetCompanionCard(
             profile: widget.petProfile,
-            quote: _petReply ?? '今天也可以慢一点，我会陪你照顾好自己。',
+            quote: _petReply ?? DashboardMock.fortune.emotionalClosing,
             controller: _messageController,
             onSend: _sendMessage,
             onOpenPetProfile: widget.onOpenPetProfile,
@@ -319,19 +319,10 @@ class _DailyFortuneCard extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    '整体运势',
-                    style: Theme.of(context).textTheme.labelMedium,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    fortune.overall,
-                    semanticsLabel: '整体运势四星',
-                    style: const TextStyle(
-                      color: AppColors.champagne,
-                      fontSize: 17,
-                      letterSpacing: 1,
-                    ),
+                  _OverallFortuneEntry(
+                    score: fortune.overallScore,
+                    explanation: fortune.overallExplanation,
+                    interpretation: fortune.overallInterpretation,
                   ),
                 ],
               ),
@@ -352,6 +343,7 @@ class _DailyFortuneCard extends StatelessWidget {
                             type: FortuneIconTypes.color,
                             label: '幸运色',
                             value: fortune.luckyColor,
+                            explanation: fortune.luckyColorExplanation,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -360,6 +352,7 @@ class _DailyFortuneCard extends StatelessWidget {
                             type: FortuneIconTypes.food,
                             label: '幸运食物',
                             value: fortune.luckyFood,
+                            explanation: fortune.luckyFoodExplanation,
                           ),
                         ),
                       ],
@@ -372,6 +365,7 @@ class _DailyFortuneCard extends StatelessWidget {
                             type: FortuneIconTypes.number,
                             label: '幸运数字',
                             value: fortune.luckyNumber,
+                            explanation: fortune.luckyNumberExplanation,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -380,6 +374,7 @@ class _DailyFortuneCard extends StatelessWidget {
                             type: FortuneIconTypes.flower,
                             label: '幸运花',
                             value: fortune.luckyFlower,
+                            explanation: fortune.luckyFlowerExplanation,
                           ),
                         ),
                       ],
@@ -398,9 +393,13 @@ class _DailyFortuneCard extends StatelessWidget {
                 flex: 4,
                 child: _FortuneScoreChart(
                   career: fortune.careerScore,
+                  careerExplanation: fortune.careerExplanation,
                   wealth: fortune.wealthScore,
+                  wealthExplanation: fortune.wealthExplanation,
                   love: fortune.loveScore,
+                  loveExplanation: fortune.loveExplanation,
                   social: fortune.socialScore,
+                  socialExplanation: fortune.socialExplanation,
                 ),
               ),
             ],
@@ -427,18 +426,175 @@ class _DailyFortuneCard extends StatelessWidget {
   }
 }
 
+class _OverallFortuneEntry extends StatelessWidget {
+  const _OverallFortuneEntry({
+    required this.score,
+    required this.explanation,
+    required this.interpretation,
+  });
+
+  final int score;
+  final String explanation;
+  final String interpretation;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => _OverallFortunePage(
+              score: score,
+              explanation: explanation,
+              interpretation: interpretation,
+            ),
+          ),
+        );
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '整体运势',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(width: 3),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 16,
+                color: AppColors.secondaryInk,
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '$score分',
+            semanticsLabel: '整体运势 $score 分',
+            style: const TextStyle(
+              color: AppColors.champagne,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OverallFortunePage extends StatelessWidget {
+  const _OverallFortunePage({
+    required this.score,
+    required this.explanation,
+    required this.interpretation,
+  });
+
+  final int score;
+  final String explanation;
+  final String interpretation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: ResponsivePage(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      tooltip: '返回',
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.champagneSoft,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
+                      child: Text(
+                        '$score分',
+                        style: const TextStyle(
+                          color: AppColors.primaryDark,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  '整体解读',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  explanation,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                        color: AppColors.secondaryInk,
+                        height: 1.55,
+                      ),
+                ),
+                const SizedBox(height: 22),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryMist.withValues(alpha: .72),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: AppColors.outlineSoft),
+                  ),
+                  child: Text(
+                    interpretation,
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: AppColors.ink,
+                          height: 1.8,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FortuneScoreChart extends StatelessWidget {
   const _FortuneScoreChart({
     required this.career,
+    required this.careerExplanation,
     required this.wealth,
+    required this.wealthExplanation,
     required this.love,
+    required this.loveExplanation,
     required this.social,
+    required this.socialExplanation,
   });
 
   final int career;
+  final String careerExplanation;
   final int wealth;
+  final String wealthExplanation;
   final int love;
+  final String loveExplanation;
   final int social;
+  final String socialExplanation;
 
   @override
   Widget build(BuildContext context) {
@@ -450,24 +606,28 @@ class _FortuneScoreChart extends StatelessWidget {
         _FortuneScoreBar(
           label: '事业',
           score: career,
+          explanation: careerExplanation,
           color: AppColors.primary,
         ),
         const SizedBox(height: 7),
         _FortuneScoreBar(
           label: '财富',
           score: wealth,
+          explanation: wealthExplanation,
           color: AppColors.champagne,
         ),
         const SizedBox(height: 7),
         _FortuneScoreBar(
           label: '爱情',
           score: love,
+          explanation: loveExplanation,
           color: const Color(0xFF91BCAA),
         ),
         const SizedBox(height: 7),
         _FortuneScoreBar(
           label: '人际',
           score: social,
+          explanation: socialExplanation,
           color: const Color(0xFF5F9B88),
         ),
       ],
@@ -479,52 +639,58 @@ class _FortuneScoreBar extends StatelessWidget {
   const _FortuneScoreBar({
     required this.label,
     required this.score,
+    required this.explanation,
     required this.color,
   });
 
   final String label;
   final int score;
+  final String explanation;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        SizedBox(
-          width: 28,
-          child: Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontSize: 11,
-                  color: AppColors.ink,
-                ),
-          ),
-        ),
-        const SizedBox(width: 6),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(99),
-            child: LinearProgressIndicator(
-              value: score / 100,
-              minHeight: 6,
-              backgroundColor: color.withValues(alpha: .16),
-              valueColor: AlwaysStoppedAnimation(color),
+    return _InfoBubble(
+      title: '$label运势',
+      message: explanation,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontSize: 11,
+                    color: AppColors.ink,
+                  ),
             ),
           ),
-        ),
-        const SizedBox(width: 5),
-        SizedBox(
-          width: 20,
-          child: Text(
-            '$score',
-            textAlign: TextAlign.right,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  fontSize: 10,
-                  color: AppColors.secondaryInk,
-                ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(99),
+              child: LinearProgressIndicator(
+                value: score / 100,
+                minHeight: 6,
+                backgroundColor: color.withValues(alpha: .16),
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 5),
+          SizedBox(
+            width: 24,
+            child: Text(
+              '$score',
+              textAlign: TextAlign.right,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontSize: 10,
+                    color: AppColors.secondaryInk,
+                  ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -534,49 +700,169 @@ class _FortuneInfoItem extends StatelessWidget {
     required this.type,
     required this.label,
     required this.value,
+    required this.explanation,
   });
 
   final String type;
   final String label;
   final String value;
+  final String explanation;
 
   @override
   Widget build(BuildContext context) {
     final iconPath = getFortuneIconPath(type: type, value: value);
-    return Row(
-      children: [
-        SizedBox(
-          width: 28,
-          height: 28,
-          child: Center(
-            child: type == FortuneIconTypes.number
-                ? _LuckyNumberIcon(value: value)
-                : _FortuneAssetIcon(
-                    iconPath: iconPath,
-                    fallback: _FortuneIconFallback(type: type),
-                  ),
-          ),
-        ),
-        const SizedBox(width: 9),
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label, style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.ink,
-                      fontWeight: FontWeight.w700,
+    return _InfoBubble(
+      title: label,
+      message: explanation,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 28,
+            height: 28,
+            child: Center(
+              child: type == FortuneIconTypes.number
+                  ? _LuckyNumberIcon(value: value)
+                  : _FortuneAssetIcon(
+                      iconPath: iconPath,
+                      fallback: _FortuneIconFallback(type: type),
                     ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ],
+          const SizedBox(width: 9),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: Theme.of(context).textTheme.labelMedium),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: AppColors.ink,
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoBubble extends StatefulWidget {
+  const _InfoBubble({
+    required this.title,
+    required this.message,
+    required this.child,
+  });
+
+  final String title;
+  final String message;
+  final Widget child;
+
+  @override
+  State<_InfoBubble> createState() => _InfoBubbleState();
+}
+
+class _InfoBubbleState extends State<_InfoBubble> {
+  final _layerLink = LayerLink();
+  OverlayEntry? _entry;
+
+  @override
+  void dispose() {
+    _hide();
+    super.dispose();
+  }
+
+  void _toggle() => _entry == null ? _show() : _hide();
+
+  void _show() {
+    final overlay = Overlay.of(context);
+    _entry = OverlayEntry(
+      builder: (context) {
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _hide,
+                child: const SizedBox.expand(),
+              ),
+            ),
+            CompositedTransformFollower(
+              link: _layerLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomCenter,
+              followerAnchor: Alignment.topCenter,
+              offset: const Offset(0, 8),
+              child: Material(
+                color: Colors.transparent,
+                child: Container(
+                  width: 220,
+                  constraints: const BoxConstraints(maxWidth: 340),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.ink.withValues(alpha: .9),
+                    borderRadius: BorderRadius.circular(18),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.ink.withValues(alpha: .18),
+                        blurRadius: 18,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        widget.message,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: .9),
+                          fontSize: 12,
+                          height: 1.55,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    overlay.insert(_entry!);
+  }
+
+  void _hide() {
+    _entry?.remove();
+    _entry = null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return CompositedTransformTarget(
+      link: _layerLink,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _toggle,
+        child: widget.child,
+      ),
     );
   }
 }

@@ -39,6 +39,7 @@ class CompanionPageState extends State<CompanionPage> {
   final List<_ConversationTurn> _conversation = [];
 
   EmotionInsight? _insight;
+  var _savedUserMessageCount = 0;
   var _petStatus = '平静';
   var _isAnalyzing = false;
   var _isRecorded = false;
@@ -111,12 +112,19 @@ class CompanionPageState extends State<CompanionPage> {
 
   Future<void> _recordMood() async {
     final insight = _insight;
-    final userMessages =
-        _conversation.where((turn) => turn.isUser).map((turn) => turn.text);
-    if (insight == null || userMessages.isEmpty || _isRecorded) return;
+    final userMessages = _conversation
+        .where((turn) => turn.isUser)
+        .map((turn) => turn.text)
+        .toList(growable: false);
+    final unsavedMessages = userMessages.skip(_savedUserMessageCount).toList();
+    if (insight == null || unsavedMessages.isEmpty || _isRecorded) return;
     final profile = await widget.userProfileService.loadProfile();
     if (!mounted) return;
-    final conversationSummary = userMessages.join('；');
+    final conversationSummary = unsavedMessages.join('；');
+    final journalSummary = _buildJournalSummary(
+      messages: unsavedMessages,
+      insight: insight,
+    );
     final memory = '${insight.allLabels.join('、')}：$conversationSummary';
     final memories = [...profile.memoryNotes, memory];
     final trimmedMemories = memories.length > 12
@@ -131,11 +139,20 @@ class CompanionPageState extends State<CompanionPage> {
       emotionScore: insight.intensity / 100,
       petReply: insight.petReply,
       suggestion: insight.petSuggestion,
+      summary: journalSummary.summary,
+      warmSummary: journalSummary.warmSummary,
+      possibleReason: journalSummary.possibleReason,
+      emotionChange: journalSummary.emotionChange,
+      emotionValidation: journalSummary.emotionValidation,
+      actionSuggestion: journalSummary.actionSuggestion,
+      nextActions: journalSummary.nextActions,
+      closingMessage: journalSummary.closingMessage,
     );
     setState(() {
       _history.insert(0, entry);
       _petStatus = _companionStatusForLatestLog(entry);
       _isRecorded = true;
+      _savedUserMessageCount = userMessages.length;
     });
     await Future.wait([
       widget.journalRepository.saveMoodLogs(_history),
@@ -147,6 +164,38 @@ class CompanionPageState extends State<CompanionPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('本轮对话已整理到情绪日记')));
+    await Future<void>.delayed(const Duration(milliseconds: 650));
+    if (!mounted) return;
+    setState(() {
+      _conversation.clear();
+      _insight = null;
+      _isRecorded = false;
+      _savedUserMessageCount = 0;
+    });
+    _inputFocusNode.requestFocus();
+  }
+
+  _JournalSummaryDraft _buildJournalSummary({
+    required List<String> messages,
+    required EmotionInsight insight,
+  }) {
+    final first = messages.first;
+    final last = messages.last;
+    final labels = insight.allLabels.take(3).join('、');
+    final summary =
+        messages.length == 1 ? first : '这轮对话里，你从“$first”慢慢说到了“$last”。';
+    return _JournalSummaryDraft(
+      summary: summary,
+      warmSummary: '你今天的感受被好好听见了，不需要急着把它变成答案。',
+      possibleReason: insight.possibleReason,
+      emotionChange: messages.length == 1
+          ? '这次主要浮现的是$labels。'
+          : '这段对话里，情绪从一开始的表达慢慢变得更具体，主要围绕$labels。',
+      emotionValidation: '这些感受的出现是合理的，它们说明你正在认真对待自己的处境和需要。',
+      actionSuggestion: insight.petSuggestion,
+      nextActions: const ['今晚留十分钟安静下来喝点水', '明天把最牵挂的一件事写成一句话'],
+      closingMessage: '我会陪你慢慢把它放轻一点 🌿',
+    );
   }
 
   String _companionStatusForEmotion(String emotion) {
@@ -244,39 +293,14 @@ class CompanionPageState extends State<CompanionPage> {
     ).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  Future<void> _startBreathing() async {
-    await showDialog<void>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('深呼吸练习'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.air_rounded,
-              size: 58,
-              color: Color(0xFF7A91A8),
-            ),
-            SizedBox(height: 16),
-            Text(
-              '吸气 4 秒 · 停留 2 秒 · 呼气 6 秒\n\n跟着自己的节奏重复三轮。',
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-        actions: [
-          FilledButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('完成'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final petName = widget.petProfile?.name ?? '一团';
+    final userMessageCount = _conversation.where((turn) => turn.isUser).length;
+    final canSaveMood = _insight != null &&
+        userMessageCount > _savedUserMessageCount &&
+        !_isAnalyzing &&
+        !_isRecorded;
     final petReply = _isAnalyzing
         ? '$petName正在认真听，也在帮你整理这份感受…'
         : _insight == null
@@ -381,15 +405,11 @@ class CompanionPageState extends State<CompanionPage> {
               ],
             ),
           ),
-          if (_insight case final insight?) ...[
+          if (_conversation.isNotEmpty) ...[
             const SizedBox(height: 22),
-            _EmotionInsightCard(insight: insight),
-            const SizedBox(height: 16),
-            _ComfortCard(
-              comfort: insight.petReply,
+            _SaveMoodJournalCard(
+              canSave: canSaveMood,
               isRecorded: _isRecorded,
-              onBreathing: _startBreathing,
-              onMusic: () => _showPlaceholder('轻音乐功能已预留'),
               onRecord: _recordMood,
             ),
           ],
@@ -424,6 +444,28 @@ class _ConversationTurn {
 
   final String text;
   final bool isUser;
+}
+
+class _JournalSummaryDraft {
+  const _JournalSummaryDraft({
+    required this.summary,
+    required this.warmSummary,
+    required this.possibleReason,
+    required this.emotionChange,
+    required this.emotionValidation,
+    required this.actionSuggestion,
+    required this.nextActions,
+    required this.closingMessage,
+  });
+
+  final String summary;
+  final String warmSummary;
+  final String possibleReason;
+  final String emotionChange;
+  final String emotionValidation;
+  final String actionSuggestion;
+  final List<String> nextActions;
+  final String closingMessage;
 }
 
 class _ConversationThread extends StatelessWidget {
@@ -586,10 +628,16 @@ class _PetPanel extends StatelessWidget {
   }
 }
 
-class _EmotionInsightCard extends StatelessWidget {
-  const _EmotionInsightCard({required this.insight});
+class _SaveMoodJournalCard extends StatelessWidget {
+  const _SaveMoodJournalCard({
+    required this.canSave,
+    required this.isRecorded,
+    required this.onRecord,
+  });
 
-  final EmotionInsight insight;
+  final bool canSave;
+  final bool isRecorded;
+  final VoidCallback onRecord;
 
   @override
   Widget build(BuildContext context) {
@@ -599,183 +647,27 @@ class _EmotionInsightCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('情绪洞察', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final label in insight.allLabels)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 11,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.surface.withValues(alpha: .9),
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(
-                          label,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Text('情绪强度', style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(99),
-                  child: LinearProgressIndicator(
-                    value: insight.intensity / 100,
-                    minHeight: 9,
-                    backgroundColor: AppColors.surface,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                '${insight.intensity}%',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ],
-          ),
-          const SizedBox(height: 17),
-          _InsightRow(
-            icon: Icons.search_rounded,
-            title: '可能原因',
-            content: insight.possibleReason,
-          ),
-          const SizedBox(height: 13),
-          _InsightRow(
-            icon: Icons.favorite_outline_rounded,
-            title: '伙伴建议',
-            content: insight.petSuggestion,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _InsightRow extends StatelessWidget {
-  const _InsightRow({
-    required this.icon,
-    required this.title,
-    required this.content,
-  });
-
-  final IconData icon;
-  final String title;
-  final String content;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: const BoxDecoration(
-            color: AppColors.surface,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 18),
-        ),
-        const SizedBox(width: 11),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 3),
-              Text(content, style: Theme.of(context).textTheme.bodyMedium),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ComfortCard extends StatelessWidget {
-  const _ComfortCard({
-    required this.comfort,
-    required this.isRecorded,
-    required this.onBreathing,
-    required this.onMusic,
-    required this.onRecord,
-  });
-
-  final String comfort;
-  final bool isRecorded;
-  final VoidCallback onBreathing;
-  final VoidCallback onMusic;
-  final VoidCallback onRecord;
-
-  @override
-  Widget build(BuildContext context) {
-    return SoftCard(
-      color: AppColors.cream,
-      borderColor: AppColors.outlineSoft,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('让自己舒服一点', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 10),
           Text(
-            '“$comfort”',
+            '想留下这一段吗？',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '我会在你点击保存后，再把这段对话整理成情绪日记。',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: AppColors.ink,
-                  height: 1.6,
+                  color: AppColors.secondaryInk,
+                  height: 1.5,
                 ),
           ),
           const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onBreathing,
-                  icon: const Icon(Icons.air_rounded),
-                  label: const Text('深呼吸'),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onMusic,
-                  icon: const Icon(Icons.music_note_rounded),
-                  label: const Text('轻音乐'),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
-              onPressed: isRecorded ? null : onRecord,
+              onPressed: canSave ? onRecord : null,
               icon: Icon(
                 isRecorded ? Icons.check_rounded : Icons.edit_note_rounded,
               ),
-              label: Text(isRecorded ? '本轮对话已整理' : '整理为情绪日记'),
+              label: Text(isRecorded ? '已保存情绪日记' : '保存情绪日记'),
             ),
           ),
         ],
@@ -811,7 +703,18 @@ class _JournalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SoftCard(
+      key: ValueKey('mood-journal-card-${entry.id}'),
       padding: const EdgeInsets.all(15),
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => _JournalDetailPage(
+              entry: entry,
+              timeText: _timeText,
+            ),
+          ),
+        );
+      },
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -819,38 +722,18 @@ class _JournalCard extends StatelessWidget {
             children: [
               Text(_timeText, style: Theme.of(context).textTheme.labelMedium),
               const Spacer(),
-              Flexible(
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 5,
-                  runSpacing: 5,
-                  children: [
-                    for (final label in entry.allEmotionLabels)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.softGreen,
-                          borderRadius: BorderRadius.circular(99),
-                        ),
-                        child: Text(
-                          label,
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+              Flexible(child: _EmotionTags(labels: entry.allEmotionLabels)),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 18,
+                color: AppColors.secondaryInk,
               ),
             ],
           ),
           const SizedBox(height: 10),
           Text(
-            entry.userText,
+            entry.displaySummary,
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: AppColors.ink),
@@ -874,7 +757,7 @@ class _JournalCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    entry.petReply,
+                    entry.displayClosingMessage,
                     style: Theme.of(context).textTheme.labelMedium?.copyWith(
                           color: AppColors.secondaryInk,
                           height: 1.45,
@@ -884,6 +767,200 @@ class _JournalCard extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmotionTags extends StatelessWidget {
+  const _EmotionTags({required this.labels});
+
+  final List<String> labels;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 5,
+      runSpacing: 5,
+      children: [
+        for (final label in labels.take(3))
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.softGreen,
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _JournalDetailPage extends StatelessWidget {
+  const _JournalDetailPage({
+    required this.entry,
+    required this.timeText,
+  });
+
+  final PetMoodLog entry;
+  final String timeText;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.canvas,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+          child: ResponsivePage(
+            maxWidth: 820,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      tooltip: '返回',
+                      icon: const Icon(Icons.arrow_back_rounded),
+                    ),
+                    const Spacer(),
+                    Text(timeText,
+                        style: Theme.of(context).textTheme.labelMedium),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text('情绪日记', style: Theme.of(context).textTheme.headlineMedium),
+                const SizedBox(height: 12),
+                _EmotionTags(labels: entry.allEmotionLabels),
+                const SizedBox(height: 18),
+                _JournalDetailSection(
+                  emoji: '📝',
+                  title: '今天聊到的是',
+                  content: entry.displaySummary,
+                ),
+                _JournalDetailSection(
+                  emoji: '🌧️',
+                  title: '它可能从这里来',
+                  content: entry.displayPossibleReason,
+                ),
+                _JournalDetailSection(
+                  emoji: '🌱',
+                  title: '你慢慢看见了',
+                  content: entry.displayEmotionChange,
+                ),
+                _JournalDetailSection(
+                  emoji: '🤍',
+                  title: '这些感受可以被允许',
+                  content: entry.displayEmotionValidation,
+                ),
+                _JournalActionsSection(actions: entry.displayNextActions),
+                _JournalDetailSection(
+                  emoji: '✨',
+                  title: '留给现在的你',
+                  content: entry.displayClosingMessage,
+                  highlighted: true,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _JournalDetailSection extends StatelessWidget {
+  const _JournalDetailSection({
+    required this.emoji,
+    required this.title,
+    required this.content,
+    this.highlighted = false,
+  });
+
+  final String emoji;
+  final String title;
+  final String content;
+  final bool highlighted;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: highlighted ? AppColors.primaryMist : AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.outlineSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$emoji  $title', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Text(
+            content,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: AppColors.secondaryInk,
+                  height: 1.6,
+                ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _JournalActionsSection extends StatelessWidget {
+  const _JournalActionsSection({required this.actions});
+
+  final List<String> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.outlineSoft),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('🌤️  可以试试的小事', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 10),
+          for (final action in actions.take(2)) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('• '),
+                Expanded(
+                  child: Text(
+                    action,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: AppColors.secondaryInk,
+                          height: 1.6,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+          ],
         ],
       ),
     );

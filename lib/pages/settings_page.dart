@@ -10,6 +10,7 @@ import '../widgets/page_header.dart';
 import '../widgets/profile_field_pickers.dart';
 import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
+import 'memory_management_page.dart';
 import 'pet_profile_form_page.dart';
 import 'pet_profile_onboarding_page.dart';
 
@@ -88,6 +89,22 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => _petProfile = profile);
   }
 
+  Future<void> _openMemoryManagement() async {
+    final profile = _profile;
+    if (profile == null) return;
+    final updated = await Navigator.of(context).push<UserProfile>(
+      MaterialPageRoute<UserProfile>(
+        builder: (_) => MemoryManagementPage(
+          initialProfile: profile,
+          agentService: widget.agentService,
+          userProfileService: widget.userProfileService,
+        ),
+      ),
+    );
+    if (!mounted || updated == null) return;
+    setState(() => _profile = updated);
+  }
+
   Future<void> _saveProfile() async {
     final profile = _profile;
     if (profile == null || _isSaving) return;
@@ -151,35 +168,51 @@ class _SettingsPageState extends State<SettingsPage> {
   }) {
     return showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
-                child:
-                    Text(title, style: Theme.of(context).textTheme.titleLarge),
-              ),
-              if (optional)
-                ListTile(
-                  title: const Text('暂不填写'),
-                  trailing:
-                      current == null ? const Icon(Icons.check_rounded) : null,
-                  onTap: () => Navigator.pop(context, ''),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.sizeOf(context).height * .72,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 4, 4, 10),
+                  child: Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                 ),
-              for (final option in options)
-                ListTile(
-                  title: Text(option),
-                  trailing: current == option
-                      ? const Icon(Icons.check_rounded)
-                      : null,
-                  onTap: () => Navigator.pop(context, option),
+                Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      if (optional)
+                        ListTile(
+                          title: const Text('暂不填写'),
+                          trailing: current == null
+                              ? const Icon(Icons.check_rounded)
+                              : null,
+                          onTap: () => Navigator.pop(context, ''),
+                        ),
+                      for (final option in options)
+                        ListTile(
+                          title: Text(option),
+                          trailing: current == option
+                              ? const Icon(Icons.check_rounded)
+                              : null,
+                          onTap: () => Navigator.pop(context, option),
+                        ),
+                    ],
+                  ),
                 ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -272,7 +305,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: '这不是普通设置页，而是你的长期 AI 记忆档案',
                 ),
                 const SizedBox(height: 18),
-                _MemoryExplanation(profile: profile),
+                _MemoryExplanation(
+                  profile: profile,
+                  onTap: _openMemoryManagement,
+                ),
                 const SizedBox(height: 22),
                 const SectionTitle('伙伴档案'),
                 const SizedBox(height: 10),
@@ -629,15 +665,20 @@ class _PetProfileCard extends StatelessWidget {
 }
 
 class _MemoryExplanation extends StatelessWidget {
-  const _MemoryExplanation({required this.profile});
+  const _MemoryExplanation({
+    required this.profile,
+    required this.onTap,
+  });
 
   final UserProfile profile;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return SoftCard(
       color: AppColors.cream,
       borderColor: AppColors.outlineSoft,
+      onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -654,8 +695,8 @@ class _MemoryExplanation extends StatelessWidget {
                 const SizedBox(height: 7),
                 Text(
                   profile.memoryNotes.isEmpty
-                      ? '这些信息会帮助伙伴和 AI Agent 更懂你，用于生成更个性化的饮食建议、情绪陪伴和日常提醒。'
-                      : '已在本机保存 ${profile.memoryNotes.length} 条对话提炼记忆。最近一条：${profile.memoryNotes.last}',
+                      ? '你可以亲自添加希望 easy 记住的偏好，也可以管理之后从对话中整理出的认知。'
+                      : '已保存 ${profile.memoryNotes.length} 条记忆。你可以查看、添加、修改或删除，之后的 AI 能力会按你的选择调用。',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: AppColors.ink,
                         height: 1.55,
@@ -664,6 +705,8 @@ class _MemoryExplanation extends StatelessWidget {
               ],
             ),
           ),
+          const SizedBox(width: 8),
+          const Icon(Icons.chevron_right_rounded),
         ],
       ),
     );

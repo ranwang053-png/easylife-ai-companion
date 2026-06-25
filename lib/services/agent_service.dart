@@ -110,7 +110,7 @@ class HttpAgentService implements AgentService {
               },
               'client': {
                 'platform': _clientPlatform(),
-                'appVersion': '0.2.0+2',
+                'appVersion': '0.3.0+3',
                 'locale': 'zh-CN',
               },
             }),

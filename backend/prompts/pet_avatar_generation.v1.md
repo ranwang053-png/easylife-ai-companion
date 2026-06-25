@@ -1,123 +1,30 @@
-# Pet Avatar Generation Prompt v1
-
-## Purpose
-
-Generate a premium companion mascot image from a user-uploaded subject photo or a user-provided subject description.
-
-The generated image should preserve the subject's recognizable identity while translating it into Easylife's warm, refined companion style.
+# Pet Avatar Generation Prompt V1
 
 ## Inputs
 
-The backend provider adapter should supply:
+- `subject_image`
+- `subject_description`，可选
+- `style_reference_images`，可选
 
-- `subject_image`: user-uploaded image, when available.
-- `subject_description`: optional user description of the subject.
-- `relationship_context`: optional relationship such as pet, friend, family, partner, favorite person, or imagined companion.
-- `style_reference_images`: optional approved Easylife style reference images.
-- `output_size`: target image size.
-- `background_preference`: default to clean background.
-
-## Output
-
-Expected model output:
-
-- One full-body mascot image.
-- Clean background.
-- Front-facing centered composition.
-- Suitable for use as a companion avatar or collectible-style character image.
-
-The backend should store the generated image only after the user confirms it.
+输出尺寸、背景和裁切比例由后端 Provider 配置，不重复写入用户 Prompt。
 
 ## Production Prompt
 
-Transform the uploaded subject into a premium collectible mascot character for Easylife.
+Transform the uploaded subject into a refined premium 3D collectible mascot for Easylife.
 
-Preserve the subject's unique identity and recognizable features:
+Preserve the subject's recognizable identity, distinctive colors, markings, silhouette, facial features, hairstyle, clothing cues, or pet traits.
 
-- Keep key facial or body features that make the subject identifiable.
-- Keep distinctive colors, markings, silhouette, hairstyle, clothing cues, or pet traits when present.
-- Avoid changing the subject into a generic character.
+Use a warm animated-feature character quality with rounded soft proportions, expressive eyes, a calm friendly expression, detailed toy-grade materials, subtle subsurface scattering, and soft studio lighting. The result should feel elegant, comforting, adult-friendly, and suitable for a premium lifestyle companion app.
 
-Visual style:
+Create a front-facing, full-body, centered composition on a clean background with enough margin for app cropping.
 
-- High-end animated feature character quality.
-- Premium collectible toy aesthetic.
-- Blind-box figure feeling.
-- Cute but refined mascot design.
-- Rounded shapes.
-- Chubby, soft proportions.
-- Large expressive eyes.
-- Soft, friendly expression.
-- Warm, comforting, elegant, and premium.
-- Appealing to adults, not childish.
-- Consistent with a gentle lifestyle companion app.
+Avoid generic identity, childish or exaggerated styling, heavy blush, harsh shadows, busy backgrounds, text, logos, watermarks, extra limbs, distorted anatomy, cropped bodies, scary expressions, and low-quality rendering.
 
-Rendering:
+## Storage And Privacy
 
-- High-end 3D render.
-- Soft studio lighting.
-- Subtle subsurface scattering.
-- Detailed but clean textures.
-- Toy-grade materials.
-- Smooth premium finish.
-- Crisp details.
-- High resolution.
+- 用户授权后才能发送原图。
+- 候选图仅短期保存，用户确认后才持久化最终结果。
+- 不记录原图 URL、完整人物描述或身份字段。
+- 真人图片必须确认用户拥有使用权。
 
-Composition:
-
-- Front-facing.
-- Full body.
-- Centered composition.
-- Clean background.
-- Enough margin around the character for app UI cropping.
-- No busy environment.
-
-Mood:
-
-- Warm.
-- Friendly.
-- Comforting.
-- Premium.
-- Elegant.
-- Calm and trustworthy.
-
-Avoid:
-
-- Do not make it childish.
-- Do not make it exaggerated.
-- Do not make it low quality.
-- Do not add heavy shadows.
-- Do not add sticker-like decorations.
-- Do not add obvious blush or overly cute facial marks unless the subject naturally has similar features.
-- Do not create a scary, uncanny, aggressive, messy, or cheap-looking character.
-- Do not include text, logos, watermarks, UI elements, or brand marks.
-- Do not imitate any specific copyrighted studio, franchise, living artist, or trademarked character style.
-
-Quality target:
-
-- Masterpiece-level composition.
-- Premium 3D collectible figure.
-- Clean app-ready avatar.
-
-## Negative Prompt
-
-low quality, blurry, noisy, distorted anatomy, uncanny face, scary expression, aggressive, messy background, cheap plastic, harsh lighting, overexposed, underexposed, watermark, text, logo, brand mark, sticker, childish, exaggerated, heavy blush, extra limbs, cropped body, side view
-
-## Style Notes
-
-The user-provided draft referenced well-known animated studio styles. For production use, this prompt intentionally generalizes those references into "high-end animated feature character quality" and "premium collectible toy aesthetic" to reduce brand and style imitation risk.
-
-If approved reference images are available, the provider adapter may pass them as `style_reference_images` instead of naming protected brands or studios in the prompt.
-
-## Safety And Privacy Rules
-
-- Do not log the uploaded image URL, complete subject description, or user identity fields.
-- Do not send the image to a provider unless the user has granted upload and generation consent.
-- If the provider returns multiple candidates, show them as temporary previews and persist only the user-confirmed result.
-- For real-person subjects, require explicit user confirmation that they have the right to use the source image.
-- For pet subjects, make clear that generated images are stylized and may not perfectly match the pet.
-
-## Version Notes
-
-- v1: Initial production prompt based on user-provided partner mascot generation direction.
-
+风格一致性优先通过已批准的参考图控制，不在 Prompt 中堆叠受保护品牌或大量重复风格词。

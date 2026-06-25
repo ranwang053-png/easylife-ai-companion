@@ -2,6 +2,7 @@ import 'package:company_app/main.dart';
 import 'package:company_app/models/app_models.dart';
 import 'package:company_app/pages/app_shell.dart';
 import 'package:company_app/pages/health_page.dart';
+import 'package:company_app/pages/memory_management_page.dart';
 import 'package:company_app/pages/pet_profile_form_page.dart';
 import 'package:company_app/pages/settings_page.dart';
 import 'package:company_app/services/agent_service.dart';
@@ -11,6 +12,8 @@ import 'package:company_app/services/pet_profile_service.dart';
 import 'package:company_app/services/user_profile_service.dart';
 import 'package:company_app/theme/app_colors.dart';
 import 'package:company_app/widgets/quick_action_fab.dart';
+import 'package:company_app/widgets/profile_field_pickers.dart';
+import 'package:company_app/widgets/soft_card.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -108,6 +111,36 @@ void main() {
     expect(find.text('出生日期与时间'), findsOneWidget);
     expect(find.text('取消'), findsOneWidget);
     expect(find.text('完成'), findsOneWidget);
+  });
+
+  testWidgets('region picker uses one text size for province city and area',
+      (tester) async {
+    MockPetProfileService.resetMockProfile();
+    await tester.pumpWidget(const CompanyApp());
+    await tester.pumpAndSettle();
+    await authenticateNewUser(tester);
+
+    final birthPlaceTile = find.text('出生地');
+    await tester.ensureVisible(birthPlaceTile);
+    await tester.pumpAndSettle();
+    await tester.tap(birthPlaceTile);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CupertinoPicker), findsNWidgets(3));
+    final pickerTexts = tester.widgetList<Text>(
+      find.descendant(
+        of: find.byType(CupertinoPicker),
+        matching: find.byType(Text),
+      ),
+    );
+    expect(pickerTexts, isNotEmpty);
+    expect(
+      pickerTexts.every(
+        (widget) => widget.style?.fontSize == regionPickerTextStyle.fontSize,
+      ),
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('dashboard renders core companion content', (tester) async {
@@ -536,10 +569,46 @@ void main() {
 
     expect(find.text('今天有一点累'), findsOneWidget);
     expect((tester.widget<TextField>(input).controller?.text ?? ''), isEmpty);
-    expect(find.text('疲惫'), findsWidgets);
-    expect(find.text('压力'), findsWidgets);
+    expect(find.text('情绪洞察'), findsNothing);
+    expect(find.text('压力'), findsNothing);
     expect(find.textContaining('我听见你已经撑着走了很久'), findsWidgets);
+    expect(find.text('保存情绪日记'), findsOneWidget);
     expect(find.text('保存并查看'), findsNothing);
+
+    await tester.ensureVisible(find.text('保存情绪日记'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('保存情绪日记'));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('已保存情绪日记'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
+
+    expect(find.text('本轮对话'), findsNothing);
+    expect(find.text('保存情绪日记'), findsNothing);
+    expect(find.text('今天有一点累'), findsOneWidget);
+
+    final journalCard = find.byWidgetPredicate(
+      (widget) =>
+          widget.key is ValueKey<String> &&
+          (widget.key as ValueKey<String>).value.startsWith(
+                'mood-journal-card-',
+              ),
+    );
+    expect(journalCard, findsWidgets);
+    await tester.ensureVisible(journalCard.first);
+    await tester.pumpAndSettle();
+    tester.widget<SoftCard>(journalCard.first).onTap?.call();
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('今天聊到的是'), findsOneWidget);
+    expect(find.textContaining('它可能从这里来'), findsOneWidget);
+    expect(find.textContaining('你慢慢看见了'), findsOneWidget);
+    expect(find.textContaining('这些感受可以被允许'), findsOneWidget);
+    expect(find.textContaining('可以试试的小事'), findsOneWidget);
+    expect(find.textContaining('留给现在的你'), findsOneWidget);
+    expect(find.text('本轮摘要'), findsNothing);
+    expect(find.text('可能原因'), findsNothing);
+    expect(find.text('用户情绪及变化'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -549,6 +618,9 @@ void main() {
     await tester.tap(find.text('饮食'));
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
+    expect(find.text('拍照或写一句话记录'), findsNothing);
+    expect(find.text('新增体重'), findsOneWidget);
+    expect(find.byTooltip('新增体重'), findsOneWidget);
     await tester.tap(find.byTooltip('新增体重'));
     await tester.pumpAndSettle();
 
@@ -586,6 +658,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+    expect(find.text('拍照或写一句话记录'), findsNothing);
+    expect(find.text('新增体重'), findsOneWidget);
     await tester.tap(find.byTooltip('新增体重'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), '52.1');
@@ -620,9 +694,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('拍照或写一句话记录'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('拍照或写一句话记录'));
+    tester.state<HealthPageState>(find.byType(HealthPage)).startQuickMeal();
     await tester.pumpAndSettle();
     expect(find.text('一句话，也能轻松记录'), findsOneWidget);
 
@@ -630,15 +702,52 @@ void main() {
     await tester.pumpAndSettle();
     expect(await repository.hasSeenDietGuide(), isFalse);
 
-    await tester.ensureVisible(find.text('拍照或写一句话记录'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('拍照或写一句话记录'));
+    tester.state<HealthPageState>(find.byType(HealthPage)).startQuickMeal();
     await tester.pumpAndSettle();
     await tester.tap(find.text('跳过'));
     await tester.pumpAndSettle();
 
     expect(find.text('记录今天吃了什么'), findsOneWidget);
     expect(await repository.hasSeenDietGuide(), isTrue);
+  });
+
+  testWidgets('diet timeline shows daily weekly and monthly summaries',
+      (tester) async {
+    await pumpToDashboard(tester);
+
+    await tester.tap(find.text('饮食'));
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('饮食回顾'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('饮食回顾'), findsOneWidget);
+    expect(find.text('按日、周、月查看复盘和下一期建议'), findsOneWidget);
+    await tester.tap(find.text('饮食回顾'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('前一日数据总结'), findsOneWidget);
+    expect(find.text('当日数据总结'), findsOneWidget);
+    expect(find.text('下一日饮食建议'), findsOneWidget);
+    expect(find.text('最常吃'), findsWidgets);
+    expect(find.text('热量最高'), findsWidgets);
+    expect(find.text('吃了什么'), findsNothing);
+
+    await tester.tap(find.text('周'));
+    await tester.pumpAndSettle();
+    expect(find.text('前一周数据总结'), findsOneWidget);
+    expect(find.text('当周数据总结'), findsOneWidget);
+    expect(find.text('下一周饮食建议'), findsOneWidget);
+
+    await tester.tap(find.text('月'));
+    await tester.pumpAndSettle();
+    expect(find.text('前一月数据总结'), findsOneWidget);
+    expect(find.text('当月数据总结'), findsOneWidget);
+    expect(find.text('下一月饮食建议'), findsOneWidget);
   });
 
   testWidgets('app shell reloads pet profile after settings closes',
@@ -759,6 +868,155 @@ void main() {
     expect(restored.cloudSyncEnabled, isTrue);
   });
 
+  testWidgets('zodiac selector scrolls without overflowing on phone',
+      (tester) async {
+    tester.view.physicalSize = const Size(390, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final store = MemoryLocalStore();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: SettingsPage(
+          agentService: const MockAgentService(),
+          petProfileService: LocalPetProfileService(store),
+          userProfileService: LocalUserProfileService(store),
+          onLogout: () async {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final zodiacTile = find.widgetWithText(ListTile, '星座');
+    await tester.ensureVisible(zodiacTile);
+    await tester.pumpAndSettle();
+    await tester.tap(zodiacTile);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('白羊座'), findsOneWidget);
+    final optionList = find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.byType(Scrollable),
+    );
+    await tester.scrollUntilVisible(
+      find.text('双鱼座'),
+      180,
+      scrollable: optionList,
+    );
+    await tester.drag(optionList, const Offset(0, -80));
+    await tester.pumpAndSettle();
+    final piscesTile = find.widgetWithText(ListTile, '双鱼座');
+    await tester.tap(piscesTile);
+    await tester.pumpAndSettle();
+
+    expect(find.text('双鱼座'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('long-term memories can be added, edited and deleted',
+      (tester) async {
+    final store = MemoryLocalStore();
+    final userProfileService = LocalUserProfileService(store);
+    final initialProfile = MockUserProfileService.currentProfile.copyWith(
+      memoryNotes: const ['压力大时希望先被倾听'],
+    );
+    await userProfileService.saveProfile(initialProfile);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemoryManagementPage(
+          initialProfile: initialProfile,
+          agentService: const MockAgentService(),
+          userProfileService: userProfileService,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('add-memory-button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('memory-editor-field')),
+      '饮食建议希望简单易执行',
+    );
+    await tester.tap(find.byKey(const Key('confirm-memory-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('饮食建议希望简单易执行'), findsOneWidget);
+    expect(
+      (await userProfileService.loadProfile()).memoryNotes,
+      ['压力大时希望先被倾听', '饮食建议希望简单易执行'],
+    );
+
+    final addedMemory = find.byKey(const ValueKey('memory-item-1'));
+    await tester.tap(
+      find.descendant(
+        of: addedMemory,
+        matching: find.byType(PopupMenuButton<String>),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('修改'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('memory-editor-field')),
+      '饮食建议希望温和且容易执行',
+    );
+    await tester.tap(find.byKey(const Key('confirm-memory-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('饮食建议希望温和且容易执行'), findsOneWidget);
+
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const ValueKey('memory-item-1')),
+        matching: find.byType(PopupMenuButton<String>),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('删除'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('confirm-delete-memory-button')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('饮食建议希望温和且容易执行'), findsNothing);
+    expect(
+      (await userProfileService.loadProfile()).memoryNotes,
+      ['压力大时希望先被倾听'],
+    );
+  });
+
+  testWidgets('long-term memory cards hide original journal text',
+      (tester) async {
+    final store = MemoryLocalStore();
+    final userProfileService = LocalUserProfileService(store);
+    const rawMemory = '低落、委屈、需要被理解：今天睡了好久，有点焦虑，听我讲经过';
+    final initialProfile = MockUserProfileService.currentProfile.copyWith(
+      memoryNotes: const [rawMemory],
+    );
+    await userProfileService.saveProfile(initialProfile);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemoryManagementPage(
+          initialProfile: initialProfile,
+          agentService: const MockAgentService(),
+          userProfileService: userProfileService,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('低落、委屈、需要被理解'), findsOneWidget);
+    expect(find.textContaining('今天睡了好久'), findsNothing);
+    expect(
+      (await userProfileService.loadProfile()).memoryNotes,
+      const [rawMemory],
+    );
+  });
+
   testWidgets('diet record can become a sticker in today journal',
       (tester) async {
     await pumpToDashboard(tester);
@@ -766,13 +1024,14 @@ void main() {
     await tester.tap(find.text('饮食'));
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('拍照或写一句话记录'),
-      250,
-      scrollable: find.byType(Scrollable).first,
-    );
+    await tester.tap(find.byType(FloatingActionButton));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('拍照或写一句话记录'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(QuickActionFab),
+        matching: find.byIcon(Icons.ramen_dining_rounded),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(find.text('一句话，也能轻松记录'), findsOneWidget);
 

@@ -118,6 +118,14 @@ void main() {
       emotionScore: .4,
       petReply: '我在这里。',
       suggestion: '保持节奏。',
+      summary: '今天整体比较平静。',
+      warmSummary: '今天的你比较稳。',
+      possibleReason: '节奏比较稳定。',
+      emotionChange: '主要是平静和放松。',
+      emotionValidation: '平静也是值得被记录的状态。',
+      actionSuggestion: '保持节奏。',
+      nextActions: const ['今晚早点休息', '明天继续保持节奏'],
+      closingMessage: '我在这里。',
     );
     final weight = WeightRecord(date: DateTime(2026, 6, 13), weight: 52.1);
 
@@ -130,6 +138,14 @@ void main() {
     final restoredMood = (await restored.loadMoodLogs()).single;
     expect(restoredMood.id, 'mood-new');
     expect(restoredMood.allEmotionLabels, ['平静', '放松']);
+    expect(restoredMood.displaySummary, '今天整体比较平静。');
+    expect(restoredMood.displayWarmSummary, '今天的你比较稳。');
+    expect(restoredMood.displayPossibleReason, '节奏比较稳定。');
+    expect(restoredMood.displayEmotionChange, '主要是平静和放松。');
+    expect(restoredMood.displayEmotionValidation, '平静也是值得被记录的状态。');
+    expect(restoredMood.displayActionSuggestion, '保持节奏。');
+    expect(restoredMood.displayNextActions, ['今晚早点休息', '明天继续保持节奏']);
+    expect(restoredMood.displayClosingMessage, '我在这里。');
     expect(await restored.loadMealRecords(), isEmpty);
     expect((await restored.loadWeightRecords()).single.weight, 52.1);
     expect(await restored.hasSeenDietGuide(), isTrue);

@@ -19,9 +19,12 @@ const _previewAuthBypass = bool.fromEnvironment(
   'EASYLIFE_PREVIEW_AUTH_BYPASS',
 );
 
+const _demoMode = bool.fromEnvironment('EASYLIFE_DEMO_MODE');
+
 const _apiBaseUrl = String.fromEnvironment('EASYLIFE_API_BASE_URL');
 
 const _previewAuthBypassToken = 'stable-static-20260620';
+const _portfolioDemoUserId = 'portfolio-demo-user';
 
 bool get _canBypassAuthForPreview {
   return isPreviewAuthBypassUri(
@@ -75,6 +78,7 @@ class CompanyApp extends StatelessWidget {
     this.authService,
     this.authSessionStore,
     this.localStore,
+    this.demoMode = false,
     super.key,
   }) : useLocalStorage = false;
 
@@ -82,6 +86,7 @@ class CompanyApp extends StatelessWidget {
     this.authService,
     this.authSessionStore,
     this.localStore,
+    this.demoMode = _demoMode,
     super.key,
   }) : useLocalStorage = true;
 
@@ -89,6 +94,7 @@ class CompanyApp extends StatelessWidget {
   final AuthService? authService;
   final AuthSessionStore? authSessionStore;
   final LocalStore? localStore;
+  final bool demoMode;
 
   @override
   Widget build(BuildContext context) {
@@ -101,6 +107,7 @@ class CompanyApp extends StatelessWidget {
         authService: authService,
         authSessionStore: authSessionStore,
         localStore: localStore,
+        demoMode: demoMode,
       ),
     );
   }
@@ -112,12 +119,14 @@ class _AppStartupGate extends StatefulWidget {
     required this.authService,
     required this.authSessionStore,
     required this.localStore,
+    required this.demoMode,
   });
 
   final bool useLocalStorage;
   final AuthService? authService;
   final AuthSessionStore? authSessionStore;
   final LocalStore? localStore;
+  final bool demoMode;
 
   @override
   State<_AppStartupGate> createState() => _AppStartupGateState();
@@ -273,6 +282,16 @@ class _AppStartupGateState extends State<_AppStartupGate> {
     setState(() => _step = _StartupStep.app);
   }
 
+  Future<void> _enterPortfolioDemo() async {
+    await _configureServices(_portfolioDemoUserId);
+    if (!mounted) return;
+    setState(() {
+      _accountIdentifier = _portfolioDemoUserId;
+      _nickname = '';
+      _step = _StartupStep.app;
+    });
+  }
+
   Future<void> _handleLogout() async {
     await _sessionManager.logout();
     if (!mounted) return;
@@ -301,6 +320,8 @@ class _AppStartupGateState extends State<_AppStartupGate> {
           authService: _authService,
           deviceId: _sessionManager.deviceId,
           showExampleCode: _authService is FixedExampleAuthService,
+          demoMode: widget.demoMode,
+          onEnterDemo: _enterPortfolioDemo,
           onAuthenticated: _handleAuthenticated,
         ),
       _StartupStep.basicInfo => UserBasicInfoPage(
