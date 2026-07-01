@@ -62,8 +62,7 @@ services:
     region: oregon
     rootDir: backend/server
     buildCommand: npm ci && npm run build
-    preDeployCommand: npm run migrate:prod
-    startCommand: npm start
+    startCommand: npm run migrate:prod && npm start
     healthCheckPath: /v1/health
     autoDeployTrigger: commit
     envVars:
