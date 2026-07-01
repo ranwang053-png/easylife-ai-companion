@@ -76,26 +76,6 @@ services:
       - key: SMS_PROVIDER_TOKEN
         sync: false
 
-  - type: worker
-    name: easylife-auth-worker
-    runtime: node
-    plan: free
-    region: oregon
-    rootDir: backend/server
-    buildCommand: npm ci && npm run build
-    startCommand: npm run migrate:prod && npm run start:worker
-    autoDeployTrigger: commit
-    envVars:
-      - fromGroup: easylife-api-shared
-      - key: DATABASE_URL
-        fromDatabase:
-          name: easylife-postgres
-          property: connectionString
-      - key: SMS_PROVIDER_URL
-        sync: false
-      - key: SMS_PROVIDER_TOKEN
-        sync: false
-
 databases:
   - name: easylife-postgres
     databaseName: easylife
