@@ -12,20 +12,24 @@
     "start": "node dist/src/server.js",
     "start:worker": "node dist/src/worker.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run test/contract.test.ts test/auth.integration.test.ts test/sms-provider.test.ts"
+    "test": "vitest run test/contract.test.ts test/auth.integration.test.ts test/sms-provider.test.ts test/ai-provider.test.ts"
   },
   "dependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
+    "dotenv": "^16.4.7",
     "express": "^5.1.0",
     "jose": "^6.2.3",
     "pg": "^8.22.0",
+    "pngjs": "^7.0.0",
+    "undici": "^7.17.0",
     "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@types/express": "^5.0.3",
     "@types/node": "^24.3.0",
     "@types/pg": "^8.20.0",
+    "@types/pngjs": "^6.0.5",
     "@types/supertest": "^6.0.3",
     "supertest": "^7.1.4",
     "tsx": "^4.20.5",

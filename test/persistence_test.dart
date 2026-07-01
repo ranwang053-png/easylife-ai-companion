@@ -96,83 +96,90 @@ void main() {
       (await LocalUserProfileService(store).loadProfile()).nickname,
       '内测用户',
     );
-    expect(
-      (await LocalPetProfileService(store).getPetProfile())?.name,
-      '糯米',
-    );
+    expect((await LocalPetProfileService(store).getPetProfile())?.name, '糯米');
     final restoredPet = await LocalPetProfileService(store).getPetProfile();
     expect(restoredPet?.profileSource, 'https://example.com/profile');
     expect(restoredPet?.personalitySummary, '温柔可靠，善于倾听。');
   });
 
-  test('journal repository restores mood, meals, weights and guide state',
+  test(
+    'journal repository restores mood, meals, weights and guide state',
+    () async {
+      final store = MemoryLocalStore();
+      final repository = LocalJournalRepository(store);
+      final mood = PetMoodLog(
+        id: 'mood-new',
+        time: DateTime(2026, 6, 13, 9),
+        userText: '今天很平静',
+        emotionLabel: '平静',
+        emotionLabels: const ['平静', '放松'],
+        emotionScore: .4,
+        petReply: '我在这里。',
+        suggestion: '保持节奏。',
+        summary: '今天整体比较平静。',
+        warmSummary: '今天的你比较稳。',
+        possibleReason: '节奏比较稳定。',
+        emotionChange: '主要是平静和放松。',
+        emotionValidation: '平静也是值得被记录的状态。',
+        actionSuggestion: '保持节奏。',
+        nextActions: const ['今晚早点休息', '明天继续保持节奏'],
+        closingMessage: '我在这里。',
+      );
+      final weight = WeightRecord(date: DateTime(2026, 6, 13), weight: 52.1);
+
+      await repository.saveMoodLogs([mood]);
+      await repository.saveMealRecords(const []);
+      await repository.saveWeightRecords([weight]);
+      await repository.setHasSeenDietGuide(true);
+
+      final restored = LocalJournalRepository(store);
+      final restoredMood = (await restored.loadMoodLogs()).single;
+      expect(restoredMood.id, 'mood-new');
+      expect(restoredMood.allEmotionLabels, ['平静', '放松']);
+      expect(restoredMood.displaySummary, '今天整体比较平静。');
+      expect(restoredMood.displayWarmSummary, '今天的你比较稳。');
+      expect(restoredMood.displayPossibleReason, '节奏比较稳定。');
+      expect(restoredMood.displayEmotionChange, '主要是平静和放松。');
+      expect(restoredMood.displayEmotionValidation, '平静也是值得被记录的状态。');
+      expect(restoredMood.displayActionSuggestion, '保持节奏。');
+      expect(restoredMood.displayNextActions, ['今晚早点休息', '明天继续保持节奏']);
+      expect(restoredMood.displayClosingMessage, '我在这里。');
+      expect(await restored.loadMealRecords(), isEmpty);
+      expect((await restored.loadWeightRecords()).single.weight, 52.1);
+      expect(await restored.hasSeenDietGuide(), isTrue);
+    },
+  );
+
+  test('HTTP agent parses real emotion response with companion context',
       () async {
-    final store = MemoryLocalStore();
-    final repository = LocalJournalRepository(store);
-    final mood = PetMoodLog(
-      id: 'mood-new',
-      time: DateTime(2026, 6, 13, 9),
-      userText: '今天很平静',
-      emotionLabel: '平静',
-      emotionLabels: const ['平静', '放松'],
-      emotionScore: .4,
-      petReply: '我在这里。',
-      suggestion: '保持节奏。',
-      summary: '今天整体比较平静。',
-      warmSummary: '今天的你比较稳。',
-      possibleReason: '节奏比较稳定。',
-      emotionChange: '主要是平静和放松。',
-      emotionValidation: '平静也是值得被记录的状态。',
-      actionSuggestion: '保持节奏。',
-      nextActions: const ['今晚早点休息', '明天继续保持节奏'],
-      closingMessage: '我在这里。',
-    );
-    final weight = WeightRecord(date: DateTime(2026, 6, 13), weight: 52.1);
-
-    await repository.saveMoodLogs([mood]);
-    await repository.saveMealRecords(const []);
-    await repository.saveWeightRecords([weight]);
-    await repository.setHasSeenDietGuide(true);
-
-    final restored = LocalJournalRepository(store);
-    final restoredMood = (await restored.loadMoodLogs()).single;
-    expect(restoredMood.id, 'mood-new');
-    expect(restoredMood.allEmotionLabels, ['平静', '放松']);
-    expect(restoredMood.displaySummary, '今天整体比较平静。');
-    expect(restoredMood.displayWarmSummary, '今天的你比较稳。');
-    expect(restoredMood.displayPossibleReason, '节奏比较稳定。');
-    expect(restoredMood.displayEmotionChange, '主要是平静和放松。');
-    expect(restoredMood.displayEmotionValidation, '平静也是值得被记录的状态。');
-    expect(restoredMood.displayActionSuggestion, '保持节奏。');
-    expect(restoredMood.displayNextActions, ['今晚早点休息', '明天继续保持节奏']);
-    expect(restoredMood.displayClosingMessage, '我在这里。');
-    expect(await restored.loadMealRecords(), isEmpty);
-    expect((await restored.loadWeightRecords()).single.weight, 52.1);
-    expect(await restored.hasSeenDietGuide(), isTrue);
-  });
-
-  test('HTTP agent parses real emotion response', () async {
     final client = MockClient((request) async {
       expect(request.url.path, '/v1/emotion/analyze');
-      expect(
-        request.headers['authorization'],
-        'Bearer test-access-token',
-      );
+      expect(request.headers['authorization'], 'Bearer test-access-token');
       final body = jsonDecode(request.body) as Map<String, dynamic>;
+      final context = body['context'] as Map<String, dynamic>;
+      final companion = context['companion'] as Map<String, dynamic>;
       expect(body, containsPair('text', '今天还不错'));
-      expect(body, contains('context'));
+      expect(context, contains('memoryNotes'));
       expect(body, contains('client'));
       expect(body, isNot(contains('profile')));
+      expect(companion['name'], '糯米');
+      expect(companion['personalityTags'], ['安静', '贴心']);
+      expect(companion['relationshipNote'], '我的猫');
+      expect(companion['personalitySummary'], '慢热、安静，会用很轻的方式陪着你。');
+      expect(companion, isNot(contains('birthday')));
+      expect(companion, isNot(contains('originalPhotoUrl')));
       return http.Response.bytes(
-        utf8.encode(jsonEncode({
-          'label': '平静',
-          'labels': ['平静'],
-          'intensity': 55,
-          'possibleReason': '节奏稳定',
-          'petSuggestion': '继续保持',
-          'petReply': '我陪着你。',
-          'petStatus': '陪伴中',
-        })),
+        utf8.encode(
+          jsonEncode({
+            'label': '平静',
+            'labels': ['平静'],
+            'intensity': 55,
+            'possibleReason': '节奏稳定',
+            'petSuggestion': '继续保持',
+            'petReply': '我陪着你。',
+            'petStatus': '陪伴中',
+          }),
+        ),
         200,
         headers: const {'content-type': 'application/json; charset=utf-8'},
       );
@@ -187,6 +194,18 @@ void main() {
     final result = await service.analyzeEmotion(
       '今天还不错',
       MockUserProfileService.currentProfile,
+      companion: PetProfile(
+        id: 'pet-http-context',
+        name: '糯米',
+        birthday: DateTime(2022, 6, 1),
+        gender: null,
+        personalityTags: const ['安静', '贴心'],
+        relationshipNote: '我的猫',
+        originalPhotoUrl: 'mock://photo',
+        generatedAvatarUrl: 'mock://avatar',
+        createdAt: DateTime(2026, 6, 8),
+        personalitySummary: '慢热、安静，会用很轻的方式陪着你。',
+      ),
     );
 
     expect(result.label, '平静');
@@ -212,5 +231,101 @@ void main() {
     expect(result.label, '疲惫');
     expect(result.possibleReason, startsWith('当前网络分析不可用'));
     expect(fallbackReasons, ['http_503']);
+  });
+
+  test('HTTP agent sends pet avatar image data to backend', () async {
+    const inputImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    const generatedImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    final client = MockClient((request) async {
+      expect(request.url.path, '/v1/pet-avatar/generate');
+      expect(request.headers['authorization'], 'Bearer test-access-token');
+      final body = jsonDecode(request.body) as Map<String, dynamic>;
+      expect(body['imageDataUrl'], inputImage);
+      expect(body, contains('client'));
+      return http.Response(
+        jsonEncode({'generatedAvatarUrl': generatedImage}),
+        200,
+        headers: const {'content-type': 'application/json'},
+      );
+    });
+    final service = HttpAgentService(
+      baseUri: Uri.parse('https://api.example.com'),
+      fallback: const MockAgentService(),
+      accessTokenProvider: () async => 'test-access-token',
+      client: client,
+    );
+
+    final result = await service.generatePetAvatarFromPhoto(inputImage);
+
+    expect(result, generatedImage);
+  });
+
+  test('HTTP agent does not show mock avatar when backend generation fails',
+      () async {
+    const inputImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    final fallbackReasons = <String>[];
+    final service = HttpAgentService(
+      baseUri: Uri.parse('https://api.example.com'),
+      fallback: const MockAgentService(),
+      accessTokenProvider: () async => 'test-access-token',
+      onFallback: fallbackReasons.add,
+      client: MockClient((request) async {
+        expect(request.url.path, '/v1/pet-avatar/generate');
+        return http.Response('provider unavailable', 503);
+      }),
+    );
+
+    await expectLater(
+      service.generatePetAvatarFromPhoto(inputImage),
+      throwsA(isA<AgentServiceException>()),
+    );
+    expect(fallbackReasons, ['pet_avatar_http_503']);
+  });
+
+  test('HTTP agent explains oversized pet avatar payloads', () async {
+    const inputImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    final service = HttpAgentService(
+      baseUri: Uri.parse('https://api.example.com'),
+      fallback: const MockAgentService(),
+      accessTokenProvider: () async => 'test-access-token',
+      client: MockClient((_) async => http.Response('too large', 413)),
+    );
+
+    await expectLater(
+      service.generatePetAvatarFromPhoto(inputImage),
+      throwsA(
+        isA<AgentServiceException>().having(
+          (error) => error.message,
+          'message',
+          contains('5MB'),
+        ),
+      ),
+    );
+  });
+
+  test('HTTP agent explains unavailable pet avatar provider account', () async {
+    const inputImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    final service = HttpAgentService(
+      baseUri: Uri.parse('https://api.example.com'),
+      fallback: const MockAgentService(),
+      accessTokenProvider: () async => 'test-access-token',
+      client: MockClient((_) async => http.Response('provider forbidden', 403)),
+    );
+
+    await expectLater(
+      service.generatePetAvatarFromPhoto(inputImage),
+      throwsA(
+        isA<AgentServiceException>().having(
+          (error) => error.message,
+          'message',
+          contains('额度'),
+        ),
+      ),
+    );
   });
 }

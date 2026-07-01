@@ -5,11 +5,13 @@ import '../services/agent_service.dart';
 import '../services/pet_profile_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
-import '../widgets/companion_pet.dart';
+import '../utils/pet_image_picker.dart';
+import '../widgets/companion_avatar.dart';
 import '../widgets/page_header.dart';
 import '../widgets/profile_field_pickers.dart';
 import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
+import '../widgets/user_avatar.dart';
 import 'memory_management_page.dart';
 import 'pet_profile_form_page.dart';
 import 'pet_profile_onboarding_page.dart';
@@ -73,6 +75,7 @@ class _SettingsPageState extends State<SettingsPage> {
       await Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => PetProfileFormPage(
+            agentService: widget.agentService,
             petProfileService: widget.petProfileService,
             initialProfile: petProfile,
             onCompleted: _onPetProfileCompleted,
@@ -116,6 +119,23 @@ class _SettingsPageState extends State<SettingsPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('用户画像已保存到本机')));
+  }
+
+  Future<void> _changeAvatar() async {
+    final profile = _profile;
+    if (profile == null) return;
+    try {
+      final image = await pickPetImage(preferCamera: false);
+      if (!mounted || image == null) return;
+      setState(
+        () => _profile = profile.copyWith(avatarImageUrl: image.dataUrl),
+      );
+    } on PetImagePickerException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
   }
 
   Future<void> _logout() async {
@@ -308,14 +328,12 @@ class _SettingsPageState extends State<SettingsPage> {
                 _MemoryExplanation(
                   profile: profile,
                   onTap: _openMemoryManagement,
+                  onChangeAvatar: _changeAvatar,
                 ),
                 const SizedBox(height: 22),
                 const SectionTitle('伙伴档案'),
                 const SizedBox(height: 10),
-                _PetProfileCard(
-                  profile: _petProfile,
-                  onTap: _openPetProfile,
-                ),
+                _PetProfileCard(profile: _petProfile, onTap: _openPetProfile),
                 const SizedBox(height: 22),
                 const SectionTitle('基础信息'),
                 const SizedBox(height: 10),
@@ -400,8 +418,9 @@ class _SettingsPageState extends State<SettingsPage> {
                           if (!mounted) return;
                           if (value != null && value.isNotEmpty) {
                             setState(
-                              () => _profile =
-                                  profile.copyWith(occupation: value),
+                              () => _profile = profile.copyWith(
+                                occupation: value,
+                              ),
                             );
                           }
                         },
@@ -463,11 +482,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ),
                 const SizedBox(height: 22),
-                SectionTitle(
-                  '近期目标',
-                  action: '编辑',
-                  onAction: _editRecentGoals,
-                ),
+                SectionTitle('近期目标', action: '编辑', onAction: _editRecentGoals),
                 const SizedBox(height: 10),
                 _MultiSelectCard(
                   options: recentGoalOptions,
@@ -613,10 +628,7 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 class _PetProfileCard extends StatelessWidget {
-  const _PetProfileCard({
-    required this.profile,
-    required this.onTap,
-  });
+  const _PetProfileCard({required this.profile, required this.onTap});
 
   final PetProfile? profile;
   final VoidCallback onTap;
@@ -630,7 +642,11 @@ class _PetProfileCard extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          const CompanionPet(size: 86),
+          CompanionAvatar(
+            profile: pet,
+            size: 86,
+            imageKey: const Key('settings-companion-avatar-image'),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -668,10 +684,12 @@ class _MemoryExplanation extends StatelessWidget {
   const _MemoryExplanation({
     required this.profile,
     required this.onTap,
+    required this.onChangeAvatar,
   });
 
   final UserProfile profile;
   final VoidCallback onTap;
+  final VoidCallback onChangeAvatar;
 
   @override
   Widget build(BuildContext context) {
@@ -682,16 +700,18 @@ class _MemoryExplanation extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CompanionPet(size: 76),
+          UserAvatar(
+            key: const Key('settings-user-avatar'),
+            profile: profile,
+            size: 76,
+            imageKey: const Key('settings-user-avatar-image'),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '长期记忆',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
+                Text('长期记忆', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 7),
                 Text(
                   profile.memoryNotes.isEmpty
@@ -701,6 +721,15 @@ class _MemoryExplanation extends StatelessWidget {
                         color: AppColors.ink,
                         height: 1.55,
                       ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: onChangeAvatar,
+                    icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                    label: const Text('更换头像'),
+                  ),
                 ),
               ],
             ),
@@ -740,11 +769,7 @@ class _ProfileTile extends StatelessWidget {
         child: Icon(icon, size: 20),
       ),
       title: Text(title),
-      subtitle: Text(
-        value,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
+      subtitle: Text(value, maxLines: 2, overflow: TextOverflow.ellipsis),
       trailing: const Icon(Icons.edit_outlined, size: 18),
     );
   }
@@ -801,11 +826,7 @@ class _StorageCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          const _StorageRow(
-            label: '当前版本',
-            value: '本机持久化存储',
-            active: true,
-          ),
+          const _StorageRow(label: '当前版本', value: '本机持久化存储', active: true),
           const SizedBox(height: 8),
           const _StorageRow(label: '本地持久化', value: '已启用'),
           const SizedBox(height: 8),
@@ -835,36 +856,32 @@ class _PermissionSettingsCard extends StatelessWidget {
             icon: Icons.notifications_active_outlined,
             title: '通知提醒',
             value: profile.notificationsEnabled,
-            onChanged: (value) => onChanged(
-              profile.copyWith(notificationsEnabled: value),
-            ),
+            onChanged: (value) =>
+                onChanged(profile.copyWith(notificationsEnabled: value)),
           ),
           const Divider(height: 1, indent: 60),
           _PreferenceSwitchTile(
             icon: Icons.location_on_outlined,
             title: '定位服务',
             value: profile.locationAccessEnabled,
-            onChanged: (value) => onChanged(
-              profile.copyWith(locationAccessEnabled: value),
-            ),
+            onChanged: (value) =>
+                onChanged(profile.copyWith(locationAccessEnabled: value)),
           ),
           const Divider(height: 1, indent: 60),
           _PreferenceSwitchTile(
             icon: Icons.mic_none_rounded,
             title: '麦克风与语音输入',
             value: profile.microphoneAccessEnabled,
-            onChanged: (value) => onChanged(
-              profile.copyWith(microphoneAccessEnabled: value),
-            ),
+            onChanged: (value) =>
+                onChanged(profile.copyWith(microphoneAccessEnabled: value)),
           ),
           const Divider(height: 1, indent: 60),
           _PreferenceSwitchTile(
             icon: Icons.photo_camera_outlined,
             title: '相机与相册',
             value: profile.cameraPhotoAccessEnabled,
-            onChanged: (value) => onChanged(
-              profile.copyWith(cameraPhotoAccessEnabled: value),
-            ),
+            onChanged: (value) =>
+                onChanged(profile.copyWith(cameraPhotoAccessEnabled: value)),
           ),
         ],
       ),
@@ -873,10 +890,7 @@ class _PermissionSettingsCard extends StatelessWidget {
 }
 
 class _PrivacySettingsCard extends StatelessWidget {
-  const _PrivacySettingsCard({
-    required this.profile,
-    required this.onChanged,
-  });
+  const _PrivacySettingsCard({required this.profile, required this.onChanged});
 
   final UserProfile profile;
   final ValueChanged<UserProfile> onChanged;
@@ -891,27 +905,24 @@ class _PrivacySettingsCard extends StatelessWidget {
             icon: Icons.cloud_sync_outlined,
             title: '云端同步',
             value: profile.cloudSyncEnabled,
-            onChanged: (value) => onChanged(
-              profile.copyWith(cloudSyncEnabled: value),
-            ),
+            onChanged: (value) =>
+                onChanged(profile.copyWith(cloudSyncEnabled: value)),
           ),
           const Divider(height: 1, indent: 60),
           _PreferenceSwitchTile(
             icon: Icons.psychology_alt_outlined,
             title: '长期记忆个性化',
             value: profile.aiMemoryEnabled,
-            onChanged: (value) => onChanged(
-              profile.copyWith(aiMemoryEnabled: value),
-            ),
+            onChanged: (value) =>
+                onChanged(profile.copyWith(aiMemoryEnabled: value)),
           ),
           const Divider(height: 1, indent: 60),
           _PreferenceSwitchTile(
             icon: Icons.bug_report_outlined,
             title: '诊断日志',
             value: profile.diagnosticsEnabled,
-            onChanged: (value) => onChanged(
-              profile.copyWith(diagnosticsEnabled: value),
-            ),
+            onChanged: (value) =>
+                onChanged(profile.copyWith(diagnosticsEnabled: value)),
           ),
         ],
       ),

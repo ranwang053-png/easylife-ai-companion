@@ -14,8 +14,9 @@ import 'user_profile_service.dart';
 abstract interface class AgentService {
   Future<EmotionInsight> analyzeEmotion(
     String text,
-    UserProfile profile,
-  );
+    UserProfile profile, {
+    PetProfile? companion,
+  });
 
   Future<FoodEstimate> estimateCalories(
     String foodDescription,
@@ -51,6 +52,15 @@ abstract interface class AgentService {
 typedef AccessTokenProvider = Future<String?> Function();
 typedef AgentFallbackReporter = void Function(String reason);
 
+class AgentServiceException implements Exception {
+  const AgentServiceException(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 AgentService createAgentService({
   required AccessTokenProvider accessTokenProvider,
 }) {
@@ -84,12 +94,18 @@ class HttpAgentService implements AgentService {
   @override
   Future<EmotionInsight> analyzeEmotion(
     String text,
-    UserProfile profile,
-  ) async {
+    UserProfile profile, {
+    PetProfile? companion,
+  }) async {
     try {
       final accessToken = await accessTokenProvider();
       if (accessToken == null) {
-        return _fallbackEmotion(text, profile, 'missing_access_token');
+        return _fallbackEmotion(
+          text,
+          profile,
+          'missing_access_token',
+          companion: companion,
+        );
       }
       final response = await _client
           .post(
@@ -107,6 +123,8 @@ class HttpAgentService implements AgentService {
                 'personalTags': profile.personalTags.take(20).toList(),
                 'memoryNotes': profile.memoryNotes.reversed.take(12).toList(),
                 'petReminderStyle': profile.petReminderStyle,
+                if (companion != null)
+                  'companion': _companionContext(companion),
               },
               'client': {
                 'platform': _clientPlatform(),
@@ -121,6 +139,7 @@ class HttpAgentService implements AgentService {
           text,
           profile,
           'http_${response.statusCode}',
+          companion: companion,
         );
       }
       final json = jsonDecode(response.body) as Map<String, dynamic>;
@@ -136,17 +155,27 @@ class HttpAgentService implements AgentService {
         petStatus: json['petStatus'] as String,
       );
     } on Exception catch (error) {
-      return _fallbackEmotion(text, profile, error.runtimeType.toString());
+      return _fallbackEmotion(
+        text,
+        profile,
+        error.runtimeType.toString(),
+        companion: companion,
+      );
     }
   }
 
   Future<EmotionInsight> _fallbackEmotion(
     String text,
     UserProfile profile,
-    String reason,
-  ) async {
+    String reason, {
+    PetProfile? companion,
+  }) async {
     onFallback?.call(reason);
-    final insight = await fallback.analyzeEmotion(text, profile);
+    final insight = await fallback.analyzeEmotion(
+      text,
+      profile,
+      companion: companion,
+    );
     return EmotionInsight(
       label: insight.label,
       labels: insight.labels,
@@ -192,12 +221,99 @@ class HttpAgentService implements AgentService {
       fallback.generateMealPlan(meals, profile);
 
   @override
-  Future<String> generatePetAvatarFromPhoto(String imagePath) =>
-      fallback.generatePetAvatarFromPhoto(imagePath);
+  Future<String> generatePetAvatarFromPhoto(String imagePath) async {
+    if (!imagePath.startsWith('data:image/')) {
+      return fallback.generatePetAvatarFromPhoto(imagePath);
+    }
+    if (imagePath.length > 8 * 1024 * 1024) {
+      onFallback?.call('pet_avatar_payload_too_large');
+      throw AgentServiceException(_petAvatarErrorMessage(413));
+    }
+    try {
+      final accessToken = await accessTokenProvider();
+      if (accessToken == null) {
+        onFallback?.call('pet_avatar_missing_access_token');
+        throw const AgentServiceException('生成形象需要重新进入 Demo 后再试');
+      }
+      final response = await _client
+          .post(
+            baseUri.resolve('/v1/pet-avatar/generate'),
+            headers: {
+              'content-type': 'application/json',
+              'Authorization': 'Bearer $accessToken',
+              'X-Request-Id': _randomUuid(),
+            },
+            body: jsonEncode({
+              'imageDataUrl': imagePath,
+              'client': {
+                'platform': _clientPlatform(),
+                'appVersion': '0.3.0+3',
+                'locale': 'zh-CN',
+              },
+            }),
+          )
+          .timeout(const Duration(seconds: 90));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        onFallback?.call('pet_avatar_http_${response.statusCode}');
+        throw AgentServiceException(
+          _petAvatarErrorMessage(response.statusCode),
+        );
+      }
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final generatedAvatarUrl = json['generatedAvatarUrl'] as String?;
+      if (generatedAvatarUrl == null || generatedAvatarUrl.isEmpty) {
+        onFallback?.call('pet_avatar_invalid_response');
+        throw const AgentServiceException('AI 形象生成结果异常，请重新生成');
+      }
+      return generatedAvatarUrl;
+    } on AgentServiceException {
+      rethrow;
+    } on Exception catch (error) {
+      onFallback?.call('pet_avatar_${error.runtimeType}');
+      throw const AgentServiceException('AI 形象生成暂时不可用，请稍后重试');
+    }
+  }
 
   @override
   Future<void> updateUserProfile(UserProfile profile) =>
       fallback.updateUserProfile(profile);
+}
+
+String _petAvatarErrorMessage(int statusCode) {
+  if (statusCode == 400 || statusCode == 413) {
+    return '这张图片可能过大或格式不支持，请换一张 5MB 以内的 PNG、JPG 或 WebP 图片';
+  }
+  if (statusCode == 401) {
+    return '生成形象需要重新进入 Demo 后再试';
+  }
+  if (statusCode == 403) {
+    return '图片模型账号额度不足或权限不可用，请检查后端 API Key 与账户余额';
+  }
+  if (statusCode == 429) {
+    return 'AI 形象生成有点忙，请稍后再试';
+  }
+  return 'AI 形象生成暂时不可用，请稍后重试';
+}
+
+Map<String, Object> _companionContext(PetProfile companion) {
+  final relationshipNote = _limitedText(companion.relationshipNote, 120);
+  final personalitySummary = _limitedText(companion.personalitySummary, 200);
+  return {
+    'name': _limitedText(companion.name, 50),
+    'personalityTags': companion.personalityTags
+        .map((tag) => _limitedText(tag, 30))
+        .where((tag) => tag.isNotEmpty)
+        .take(8)
+        .toList(),
+    if (relationshipNote.isNotEmpty) 'relationshipNote': relationshipNote,
+    if (personalitySummary.isNotEmpty) 'personalitySummary': personalitySummary,
+  };
+}
+
+String _limitedText(String value, int maxLength) {
+  final trimmed = value.trim();
+  if (trimmed.length <= maxLength) return trimmed;
+  return trimmed.substring(0, maxLength);
 }
 
 String _clientPlatform() {
@@ -227,8 +343,9 @@ class MockAgentService implements AgentService {
   @override
   Future<EmotionInsight> analyzeEmotion(
     String text,
-    UserProfile profile,
-  ) async {
+    UserProfile profile, {
+    PetProfile? companion,
+  }) async {
     await Future<void>.delayed(const Duration(milliseconds: 450));
     final normalized = text.toLowerCase();
     final recentPatterns = profile.memoryNotes.reversed
@@ -289,9 +406,7 @@ class MockAgentService implements AgentService {
         label: '开心',
         labels: const ['开心', '成就感', '放松'],
         intensity: 82,
-        possibleReason: withMemory(
-          '这份开心可能来自事情顺利完成后的掌控感，也包含努力被看见、紧张终于放下来的轻松。',
-        ),
+        possibleReason: withMemory('这份开心可能来自事情顺利完成后的掌控感，也包含努力被看见、紧张终于放下来的轻松。'),
         petSuggestion: '用一句话记下“我做对了什么”，再给这次完成一个小小的庆祝，让成就感真正停留一会儿。',
         petReply: '我也跟着你松了一口气。这份开心不是偶然，是你前面的投入终于有了回应。\n\n'
             '先别急着奔向下一件事，让我们把这一刻多留一会儿。你今天最想为自己的哪一点鼓掌？',

@@ -31,8 +31,9 @@ class PetProfile {
       name: json['name'] as String,
       birthday: DateTime.parse(json['birthday'] as String),
       gender: json['gender'] as String?,
-      personalityTags:
-          List<String>.from(json['personalityTags'] as List? ?? const []),
+      personalityTags: List<String>.from(
+        json['personalityTags'] as List? ?? const [],
+      ),
       relationshipNote: json['relationshipNote'] as String? ?? '',
       originalPhotoUrl: json['originalPhotoUrl'] as String?,
       generatedAvatarUrl: json['generatedAvatarUrl'] as String?,

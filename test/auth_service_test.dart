@@ -10,10 +10,14 @@ void main() {
 
   test('fixed auth service matches the V1.1.0 SMS examples', () async {
     final sendExample = jsonDecode(
-      File('contracts/examples/sms-code-response.json').readAsStringSync(),
+      File(
+        'contracts/examples/sms-code-response.json',
+      ).readAsStringSync(),
     ) as Map<String, dynamic>;
     final verifyExample = jsonDecode(
-      File('contracts/examples/sms-verify-response.json').readAsStringSync(),
+      File(
+        'contracts/examples/sms-verify-response.json',
+      ).readAsStringSync(),
     ) as Map<String, dynamic>;
 
     final sent = await service.sendSmsCode(

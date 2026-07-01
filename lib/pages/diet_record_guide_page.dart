@@ -67,9 +67,7 @@ class _DietRecordGuidePageState extends State<DietRecordGuidePage> {
       backgroundColor: AppColors.canvas,
       appBar: AppBar(
         title: const Text('记录饮食'),
-        actions: [
-          TextButton(onPressed: _openCapture, child: const Text('跳过')),
-        ],
+        actions: [TextButton(onPressed: _openCapture, child: const Text('跳过'))],
       ),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),

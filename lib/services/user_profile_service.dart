@@ -52,13 +52,13 @@ class MockUserProfileService implements UserProfileService {
 class LocalUserProfileService implements UserProfileService {
   LocalUserProfileService(this._store);
 
-  static const _profileKey = 'easylife.v1.user_profile';
+  static const profileKey = 'easylife.v1.user_profile';
 
   final LocalStore _store;
 
   @override
   Future<UserProfile> loadProfile() async {
-    final raw = await _store.getString(_profileKey);
+    final raw = await _store.getString(profileKey);
     if (raw == null) return MockUserProfileService.currentProfile;
     try {
       return UserProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
@@ -71,5 +71,5 @@ class LocalUserProfileService implements UserProfileService {
 
   @override
   Future<void> saveProfile(UserProfile profile) =>
-      _store.setString(_profileKey, jsonEncode(profile.toJson()));
+      _store.setString(profileKey, jsonEncode(profile.toJson()));
 }

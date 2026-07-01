@@ -21,9 +21,11 @@
 请求体继续使用 OpenAPI Schema 校验，请求字段、响应结构和错误码保持 V1.1.0
 兼容。生产环境必须配置数据库和认证密钥，不能使用固定 Token 启动。
 
-情绪分析通过 `EmotionProvider` 接口调用。当前实现为
-`FixedEmotionProvider`；未来接入真实模型时新增 Provider，不应把模型 SDK、Prompt
-或密钥放进路由。
+情绪分析通过 `EmotionProvider` 接口调用。默认 `AI_PROVIDER=fixed` 时返回固定契约
+示例；设置 `AI_PROVIDER=gateway` 并配置对应 provider key 后，会通过后端调用真实
+模型。伙伴形象生成可复用 `OPENAI_API_KEY`，也可用 `AI_PET_AVATAR_API_KEY` 和
+`AI_PET_AVATAR_BASE_URL` 单独配置支持 `gpt-image-1` 的图片模型网关。Flutter 客户端
+不得保存模型 SDK、Prompt 或密钥。
 
 ## Run
 
@@ -35,7 +37,9 @@ npm run migrate
 npm run dev
 ```
 
-默认监听 `http://127.0.0.1:3000`。健康检查：
+`npm run dev`、`npm run start`、`npm run migrate` 和 worker 入口会自动读取
+`backend/server/.env`。修改 `.env` 后需要重启后端进程，前端热重启不会让后端重新加载
+环境变量。默认监听 `http://127.0.0.1:3000`。健康检查：
 
 ```bash
 curl http://127.0.0.1:3000/v1/health
@@ -149,7 +153,8 @@ X-Easylife-Test-Sms-Purpose: account_deletion
 ## Current limitations
 
 - 同步接口不写数据库，固定返回契约示例。
-- 情绪分析是无状态固定响应，不会保存情绪日记或长期记忆。
+- 情绪分析是无状态接口，不会保存情绪日记或长期记忆；未启用
+  `AI_PROVIDER=gateway` 时固定返回契约示例。
 - 真实短信能否发送取决于 `SMS_PROVIDER_URL` 对应网关及供应商账号是否已配置和联调。
 - 对象存储、缓存和第三方数据的实际删除取决于
   `ACCOUNT_DELETION_CLEANUP_URL` 对应清理服务。

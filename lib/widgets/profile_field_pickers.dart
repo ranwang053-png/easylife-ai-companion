@@ -103,8 +103,9 @@ class _BirthDateTimePickerState extends State<_BirthDateTimePicker> {
     _day = value.day;
     _hour = value.hour;
     _minute = value.minute;
-    _yearController =
-        FixedExtentScrollController(initialItem: _year - _firstYear);
+    _yearController = FixedExtentScrollController(
+      initialItem: _year - _firstYear,
+    );
     _monthController = FixedExtentScrollController(initialItem: _month - 1);
     _dayController = FixedExtentScrollController(initialItem: _day - 1);
     _hourController = FixedExtentScrollController(initialItem: _hour);

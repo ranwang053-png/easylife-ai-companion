@@ -60,6 +60,7 @@ describe("OpenAPI V1.1.0 fixed backend", () => {
         "/v1/auth/token/refresh",
         "/v1/emotion/analyze",
         "/v1/me/account",
+        "/v1/pet-avatar/generate",
         "/v1/sync/pull",
         "/v1/sync/push",
       ].sort(),
@@ -177,6 +178,18 @@ describe("OpenAPI V1.1.0 fixed backend", () => {
     expect(response.status).toBe(200);
     expectSchema("EmotionAnalyzeResponse", response.body);
     expect(response.body).toEqual(contractExample("EmotionAnalyzeResponse"));
+  });
+
+  it("returns a fixed pet avatar data URL", async () => {
+    const response = await request(app)
+      .post("/v1/pet-avatar/generate")
+      .set("X-Request-Id", requestId)
+      .set("Authorization", authorization)
+      .send(contractExample("PetAvatarGenerateRequest"));
+
+    expect(response.status).toBe(200);
+    expectSchema("PetAvatarGenerateResponse", response.body);
+    expect(response.body).toEqual(contractExample("PetAvatarGenerateResponse"));
   });
 
   it("returns fixed sync push and pull responses", async () => {

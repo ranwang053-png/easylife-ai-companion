@@ -67,9 +67,7 @@ class _MemoryManagementPageState extends State<MemoryManagementPage> {
           maxLines: 4,
           maxLength: _maximumMemoryLength,
           onChanged: (value) => input = value,
-          decoration: const InputDecoration(
-            hintText: '例如：我压力大时更希望先被倾听',
-          ),
+          decoration: const InputDecoration(hintText: '例如：我压力大时更希望先被倾听'),
         ),
         actions: [
           TextButton(
@@ -91,9 +89,9 @@ class _MemoryManagementPageState extends State<MemoryManagementPage> {
 
   Future<void> _addMemory() async {
     if (_profile.memoryNotes.length >= _maximumMemories) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('最多保留 12 条长期记忆，请先整理已有内容')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('最多保留 12 条长期记忆，请先整理已有内容')));
       return;
     }
     final value = await _showMemoryEditor(title: '添加长期记忆');

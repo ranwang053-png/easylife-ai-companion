@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../models/pet_profile.dart';
@@ -35,7 +37,7 @@ class PetAvatarPreviewPage extends StatelessWidget {
         child: Column(
           children: [
             const Spacer(),
-            const SoftCard(
+            SoftCard(
               color: AppColors.primaryMist,
               borderColor: AppColors.outlineSoft,
               child: SizedBox(
@@ -44,9 +46,9 @@ class PetAvatarPreviewPage extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    CompanionPet(size: 190),
-                    SizedBox(height: 12),
-                    Text('以后我来陪你记录生活 💗'),
+                    _GeneratedAvatarPreview(imageUrl: generatedAvatarUrl),
+                    const SizedBox(height: 12),
+                    const Text('以后我来陪你记录生活 💗'),
                   ],
                 ),
               ),
@@ -78,6 +80,7 @@ class PetAvatarPreviewPage extends StatelessWidget {
                       Navigator.of(context).push(
                         MaterialPageRoute<void>(
                           builder: (_) => PetProfileFormPage(
+                            agentService: agentService,
                             petProfileService: petProfileService,
                             originalPhotoUrl: imagePath,
                             generatedAvatarUrl: generatedAvatarUrl,
@@ -95,5 +98,39 @@ class PetAvatarPreviewPage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _GeneratedAvatarPreview extends StatelessWidget {
+  const _GeneratedAvatarPreview({required this.imageUrl});
+
+  final String imageUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    if (imageUrl.startsWith('data:image/')) {
+      final bytes = base64Decode(imageUrl.split(',').last);
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: Image.memory(
+          bytes,
+          width: 190,
+          height: 190,
+          fit: BoxFit.contain,
+        ),
+      );
+    }
+    if (imageUrl.startsWith('https://')) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: Image.network(
+          imageUrl,
+          width: 190,
+          height: 190,
+          fit: BoxFit.contain,
+        ),
+      );
+    }
+    return const CompanionPet(size: 190);
   }
 }

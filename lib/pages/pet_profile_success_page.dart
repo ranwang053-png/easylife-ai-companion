@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/pet_profile.dart';
 import '../theme/app_colors.dart';
-import '../widgets/companion_pet.dart';
+import '../widgets/companion_avatar.dart';
 
 class PetProfileSuccessPage extends StatelessWidget {
   const PetProfileSuccessPage({
@@ -35,10 +35,16 @@ class PetProfileSuccessPage extends StatelessWidget {
                 style: Theme.of(context).textTheme.headlineMedium,
               ),
               const SizedBox(height: 24),
-              const CompanionPet(size: 190),
+              CompanionAvatar(
+                profile: profile,
+                size: 190,
+                imageKey: const Key('pet-profile-success-avatar-image'),
+              ),
               const SizedBox(height: 10),
-              Text(profile.name,
-                  style: Theme.of(context).textTheme.headlineSmall),
+              Text(
+                profile.name,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 7,

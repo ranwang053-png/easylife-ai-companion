@@ -1,6 +1,9 @@
+import "./env.js";
+
 import { createApp } from "./app.js";
 import { PostgresAuthService } from "./auth/postgres-auth-service.js";
 import { WebhookSmsProvider } from "./auth/sms-provider.js";
+import { AiGateway } from "./ai/ai-gateway.js";
 import { loadConfig } from "./config.js";
 import { Database } from "./database.js";
 
@@ -34,8 +37,11 @@ const authService =
       });
 await database?.assertAuthSchema();
 await database?.assertOperationsSchema();
+const aiGateway = new AiGateway(config.ai);
 const app = createApp({
   config,
+  emotionProvider: aiGateway.emotionProvider(),
+  petAvatarProvider: aiGateway.petAvatarProvider(),
   ...(authService === undefined ? {} : { authService }),
 });
 

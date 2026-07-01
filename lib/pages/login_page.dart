@@ -163,17 +163,19 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void _showError(AuthErrorCode code) {
-    setState(() => _errorMessage = switch (code) {
-          AuthErrorCode.validationError => '请输入有效手机号和 6 位验证码。',
-          AuthErrorCode.smsCodeExpired => '验证码已失效，请重新获取。',
-          AuthErrorCode.smsCodeInvalid => '验证码错误，请检查后重试。',
-          AuthErrorCode.verificationAttemptsExceeded => '验证次数过多，请重新获取验证码。',
-          AuthErrorCode.rateLimited => '发送过于频繁，请稍后再试。',
-          AuthErrorCode.smsProviderUnavailable => '短信服务暂时不可用，请稍后再试。',
-          AuthErrorCode.unauthorized ||
-          AuthErrorCode.invalidRefreshToken =>
-            '登录状态已失效，请重新登录。',
-        });
+    setState(
+      () => _errorMessage = switch (code) {
+        AuthErrorCode.validationError => '请输入有效手机号和 6 位验证码。',
+        AuthErrorCode.smsCodeExpired => '验证码已失效，请重新获取。',
+        AuthErrorCode.smsCodeInvalid => '验证码错误，请检查后重试。',
+        AuthErrorCode.verificationAttemptsExceeded => '验证次数过多，请重新获取验证码。',
+        AuthErrorCode.rateLimited => '发送过于频繁，请稍后再试。',
+        AuthErrorCode.smsProviderUnavailable => '短信服务暂时不可用，请稍后再试。',
+        AuthErrorCode.unauthorized ||
+        AuthErrorCode.invalidRefreshToken =>
+          '登录状态已失效，请重新登录。',
+      },
+    );
   }
 
   Future<void> _enterDemo() async {
@@ -303,8 +305,10 @@ class _LoginForm extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('欢迎体验 Easylife',
-              style: Theme.of(context).textTheme.headlineMedium),
+          Text(
+            '欢迎体验 Easylife',
+            style: Theme.of(context).textTheme.headlineMedium,
+          ),
           const SizedBox(height: 10),
           Text(
             '这是作品集演示版本。无需手机号或验证码，体验数据仅保存在当前设备。',

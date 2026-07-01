@@ -7,10 +7,7 @@ abstract final class FortuneIconTypes {
 
 const _fortuneIconBasePath = 'assets/icons/fortune';
 
-String? getFortuneIconPath({
-  required String type,
-  required String value,
-}) {
+String? getFortuneIconPath({required String type, required String value}) {
   final normalized = value.trim();
   return switch (type) {
     FortuneIconTypes.food => _resolveFoodIcon(normalized),

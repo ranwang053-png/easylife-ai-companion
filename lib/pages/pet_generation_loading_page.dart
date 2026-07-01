@@ -38,9 +38,19 @@ class _PetGenerationLoadingPageState extends State<PetGenerationLoadingPage> {
     await Future<void>.delayed(const Duration(milliseconds: 550));
     if (!mounted) return;
     setState(() => _step = 1);
-    final avatarUrl = await widget.agentService.generatePetAvatarFromPhoto(
-      widget.imagePath,
-    );
+    final String avatarUrl;
+    try {
+      avatarUrl = await widget.agentService.generatePetAvatarFromPhoto(
+        widget.imagePath,
+      );
+    } on AgentServiceException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+      Navigator.of(context).pop();
+      return;
+    }
     if (!mounted) return;
     setState(() => _step = 2);
     await Future<void>.delayed(const Duration(milliseconds: 350));

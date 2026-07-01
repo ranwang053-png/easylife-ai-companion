@@ -9,28 +9,27 @@ import 'pages/user_basic_info_page.dart';
 import 'services/agent_service.dart';
 import 'services/auth_session_service.dart';
 import 'services/auth_service.dart';
+import 'services/demo_data_seeder.dart';
 import 'services/journal_repository.dart';
 import 'services/local_store.dart';
 import 'services/pet_profile_service.dart';
 import 'services/user_profile_service.dart';
 import 'theme/app_theme.dart';
 
-const _previewAuthBypass = bool.fromEnvironment(
-  'EASYLIFE_PREVIEW_AUTH_BYPASS',
-);
+const _previewAuthBypass = bool.fromEnvironment('EASYLIFE_PREVIEW_AUTH_BYPASS');
 
 const _demoMode = bool.fromEnvironment('EASYLIFE_DEMO_MODE');
 
 const _apiBaseUrl = String.fromEnvironment('EASYLIFE_API_BASE_URL');
 
 const _previewAuthBypassToken = 'stable-static-20260620';
-const _portfolioDemoUserId = 'portfolio-demo-user';
 
 bool get _canBypassAuthForPreview {
-  return isPreviewAuthBypassUri(
+  return shouldBypassAuthForPreview(
     Uri.base,
     compileTimeBypass: _previewAuthBypass,
     debugMode: kDebugMode,
+    apiBaseUrl: _apiBaseUrl,
   );
 }
 
@@ -40,11 +39,26 @@ bool isPreviewAuthBypassUri(
   required bool compileTimeBypass,
   required bool debugMode,
 }) {
+  return shouldBypassAuthForPreview(
+    uri,
+    compileTimeBypass: compileTimeBypass,
+    debugMode: debugMode,
+    apiBaseUrl: '',
+  );
+}
+
+@visibleForTesting
+bool shouldBypassAuthForPreview(
+  Uri uri, {
+  required bool compileTimeBypass,
+  required bool debugMode,
+  required String apiBaseUrl,
+}) {
   return isLocalPreviewHost(uri) &&
       (compileTimeBypass ||
-          debugMode ||
           uri.queryParameters['preview_auth_bypass'] ==
-              _previewAuthBypassToken);
+              _previewAuthBypassToken ||
+          (debugMode && apiBaseUrl.isEmpty));
 }
 
 @visibleForTesting
@@ -68,6 +82,18 @@ bool get _useFixedExampleAuthForPreview => shouldUseFixedExampleAuthForPreview(
       isWeb: kIsWeb,
       apiBaseUrl: _apiBaseUrl,
     );
+
+@visibleForTesting
+AccessTokenProvider accessTokenProviderForConfiguredServices({
+  required bool seedPortfolioDemo,
+  required String apiBaseUrl,
+  required AccessTokenProvider authenticatedProvider,
+}) {
+  if (seedPortfolioDemo && apiBaseUrl.isNotEmpty) {
+    return () async => FixedExampleAuthService.exampleAccessToken;
+  }
+  return authenticatedProvider;
+}
 
 void main() {
   runApp(const CompanyApp.production());
@@ -207,7 +233,10 @@ class _AppStartupGateState extends State<_AppStartupGate> {
     }
   }
 
-  Future<void> _configureServices(String userId) async {
+  Future<void> _configureServices(
+    String userId, {
+    bool seedPortfolioDemo = false,
+  }) async {
     if (widget.useLocalStorage) {
       final prefix = 'easylife.user.$userId';
       try {
@@ -227,8 +256,18 @@ class _AppStartupGateState extends State<_AppStartupGate> {
         debugPrint('Legacy local data migration skipped: $error');
       }
       final store = PrefixedLocalStore(_rootStore, prefix);
+      if (seedPortfolioDemo) {
+        await const PortfolioDemoDataSeeder().seedIfNeeded(
+          userId: userId,
+          store: store,
+        );
+      }
       _agentService = createAgentService(
-        accessTokenProvider: _validAccessToken,
+        accessTokenProvider: accessTokenProviderForConfiguredServices(
+          seedPortfolioDemo: seedPortfolioDemo,
+          apiBaseUrl: _apiBaseUrl,
+          authenticatedProvider: _validAccessToken,
+        ),
       );
       _petProfileService = LocalPetProfileService(store);
       _userProfileService = LocalUserProfileService(store);
@@ -263,9 +302,7 @@ class _AppStartupGateState extends State<_AppStartupGate> {
     }
   }
 
-  Future<void> _handleAuthenticated(
-    LoginVerificationResponse response,
-  ) async {
+  Future<void> _handleAuthenticated(LoginVerificationResponse response) async {
     await _sessionManager.establish(response);
     await _configureServices(response.user.id);
     if (!mounted) return;
@@ -283,10 +320,10 @@ class _AppStartupGateState extends State<_AppStartupGate> {
   }
 
   Future<void> _enterPortfolioDemo() async {
-    await _configureServices(_portfolioDemoUserId);
+    await _configureServices(portfolioDemoUserId, seedPortfolioDemo: true);
     if (!mounted) return;
     setState(() {
-      _accountIdentifier = _portfolioDemoUserId;
+      _accountIdentifier = portfolioDemoUserId;
       _nickname = '';
       _step = _StartupStep.app;
     });

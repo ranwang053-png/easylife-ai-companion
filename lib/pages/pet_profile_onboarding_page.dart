@@ -51,9 +51,9 @@ class PetProfileOnboardingPage extends StatelessWidget {
               Text(
                 '伙伴可以是宠物、家人、朋友、喜欢的人或理想角色',
                 textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: AppColors.secondaryInk,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(color: AppColors.secondaryInk),
               ),
               const Spacer(),
               SizedBox(
@@ -75,10 +75,7 @@ class PetProfileOnboardingPage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
-              TextButton(
-                onPressed: onSkip,
-                child: const Text('暂不创建'),
-              ),
+              TextButton(onPressed: onSkip, child: const Text('暂不创建')),
               const SizedBox(height: 12),
               Text(
                 '以后也可以在设置页补建或修改伙伴档案',

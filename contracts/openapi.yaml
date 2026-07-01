@@ -220,6 +220,54 @@ paths:
           $ref: "#/components/responses/RateLimitedError"
         "503":
           $ref: "#/components/responses/AiProviderUnavailableError"
+  /v1/pet-avatar/generate:
+    post:
+      tags:
+        - Pet
+      operationId: generatePetAvatar
+      summary: 生成伙伴形象
+      description: |
+        在用户明确授权后，根据上传的伙伴照片生成陪伴形象。请求使用 data URL 传输
+        PNG、JPEG 或 WebP 图片；服务端调用图像生成 provider，不在 Flutter 客户端
+        保存模型密钥。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PetAvatarGenerateRequest"
+            examples:
+              default:
+                $ref: "#/components/examples/PetAvatarGenerateRequest"
+      responses:
+        "200":
+          description: 伙伴形象生成成功
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PetAvatarGenerateResponse"
+              examples:
+                default:
+                  $ref: "#/components/examples/PetAvatarGenerateResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLargeError"
+        "422":
+          $ref: "#/components/responses/AiOutputInvalidError"
+        "429":
+          $ref: "#/components/responses/RateLimitedError"
+        "503":
+          $ref: "#/components/responses/AiProviderUnavailableError"
   /v1/sync/push:
     post:
       tags:
@@ -1132,6 +1180,38 @@ components:
           $ref: "#/components/schemas/EmotionContext"
         client:
           $ref: "#/components/schemas/ClientContext"
+    PetAvatarGenerateRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - imageDataUrl
+        - client
+      properties:
+        imageDataUrl:
+          type: string
+          minLength: 32
+          maxLength: 8388608
+          pattern: '^data:image/(png|jpeg|jpg|webp);base64,'
+          description: 用户授权上传的伙伴照片 data URL。仅允许 PNG、JPEG 或 WebP。
+        subjectDescription:
+          type: string
+          maxLength: 300
+          description: 用户可选补充的主体描述；不得包含账号、手机号或身份凭证。
+          example: 白色小猫，眼睛圆圆的，性格安静。
+        client:
+          $ref: "#/components/schemas/ClientContext"
+    PetAvatarGenerateResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - generatedAvatarUrl
+      properties:
+        generatedAvatarUrl:
+          type: string
+          minLength: 1
+          maxLength: 8388608
+          pattern: '^data:image/(png|jpeg|jpg|webp);base64,|^https://'
+          description: 生成后的伙伴形象。Demo 可返回 data URL；生产推荐返回对象存储 HTTPS URL。
     EmotionContext:
       type: object
       additionalProperties: false
@@ -1185,6 +1265,44 @@ components:
           maxLength: 50
           description: 用户选择的陪伴和提醒语气。
           example: 轻提醒
+        companion:
+          $ref: "#/components/schemas/CompanionContext"
+    CompanionContext:
+      type: object
+      additionalProperties: false
+      description: |
+        用于调整伙伴回复语气的低敏伙伴档案上下文。不得包含照片、生日、生成图片 URL
+        或其他不影响回复口吻的资料。
+      required:
+        - name
+        - personalityTags
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 50
+          example: 一团
+        personalityTags:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 30
+          example:
+            - 安静
+            - 贴心
+        relationshipNote:
+          type: string
+          maxLength: 120
+          description: 用户描述的关系或称呼。
+          example: 我的陪伴伙伴
+        personalitySummary:
+          type: string
+          maxLength: 200
+          description: 伙伴性格摘要，用于轻微调整回复口吻。
+          example: 安静地陪在身边，会在你忙过头时轻轻提醒休息。
     ClientContext:
       type: object
       additionalProperties: false
@@ -1662,6 +1780,13 @@ components:
           memoryNotes:
             - 疲惫、压力：连续加班后很累
           petReminderStyle: 轻提醒
+          companion:
+            name: 一团
+            personalityTags:
+              - 安静
+              - 贴心
+            relationshipNote: 我的陪伴伙伴
+            personalitySummary: 安静地陪在身边，会在你忙过头时轻轻提醒休息。
         client:
           platform: ios
           appVersion: 0.3.0+3
@@ -1679,3 +1804,16 @@ components:
         petSuggestion: 先缩减今晚必须完成的任务，给自己留出十分钟休息。
         petReply: 听起来你已经撑了很久，我们先慢一点。
         petStatus: 陪伴中
+    PetAvatarGenerateRequest:
+      summary: 上传照片生成伙伴形象
+      value:
+        imageDataUrl: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=
+        subjectDescription: 白色小猫，性格安静。
+        client:
+          platform: web
+          appVersion: 0.3.0+3
+          locale: zh-CN
+    PetAvatarGenerateResponse:
+      summary: 伙伴形象生成结果
+      value:
+        generatedAvatarUrl: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=

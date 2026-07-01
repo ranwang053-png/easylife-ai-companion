@@ -104,10 +104,7 @@ class _RegisterPageState extends State<RegisterPage> {
           const SizedBox(height: 22),
           SizedBox(
             height: 52,
-            child: FilledButton(
-              onPressed: _submit,
-              child: const Text('注册并继续'),
-            ),
+            child: FilledButton(onPressed: _submit, child: const Text('注册并继续')),
           ),
           TextButton(
             onPressed: widget.onBackToLogin,

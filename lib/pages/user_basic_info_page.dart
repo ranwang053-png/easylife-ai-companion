@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/user_profile.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/pet_image_picker.dart';
 import '../widgets/profile_field_pickers.dart';
 import '../widgets/responsive_page.dart';
+import '../widgets/user_avatar.dart';
 
 class UserBasicInfoPage extends StatefulWidget {
   const UserBasicInfoPage({
@@ -31,6 +33,7 @@ class _UserBasicInfoPageState extends State<UserBasicInfoPage> {
   String _mbti = '';
   String _birthPlace = '';
   String _currentResidence = '';
+  String _avatarImageUrl = '';
   final List<String> _dietPreferences = [];
   final List<String> _recentGoals = [];
   final List<String> _personalTags = [];
@@ -95,6 +98,19 @@ class _UserBasicInfoPageState extends State<UserBasicInfoPage> {
     if (value != null && mounted) setState(() => _birthday = value);
   }
 
+  Future<void> _pickAvatar() async {
+    try {
+      final image = await pickPetImage(preferCamera: false);
+      if (!mounted || image == null) return;
+      setState(() => _avatarImageUrl = image.dataUrl);
+    } on PetImagePickerException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    }
+  }
+
   Future<void> _pickOccupation() async {
     String? category;
     final result = await showModalBottomSheet<String>(
@@ -140,8 +156,9 @@ class _UserBasicInfoPageState extends State<UserBasicInfoPage> {
                             for (final item in _occupations.keys)
                               ListTile(
                                 title: Text(item),
-                                trailing:
-                                    const Icon(Icons.chevron_right_rounded),
+                                trailing: const Icon(
+                                  Icons.chevron_right_rounded,
+                                ),
                                 onTap: () =>
                                     setSheetState(() => category = item),
                               ),
@@ -425,6 +442,8 @@ class _UserBasicInfoPageState extends State<UserBasicInfoPage> {
     widget.onCompleted(
       current.copyWith(
         accountIdentifier: widget.accountIdentifier,
+        avatarImageUrl:
+            _avatarImageUrl.isEmpty ? current.avatarImageUrl : _avatarImageUrl,
         nickname: nickname.isEmpty ? '新朋友' : nickname,
         birthday: _birthday,
         occupation: _occupation,
@@ -462,14 +481,34 @@ class _UserBasicInfoPageState extends State<UserBasicInfoPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('让easy更懂你',
-                    style: Theme.of(context).textTheme.headlineSmall),
+                Text(
+                  '让easy更懂你',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
                 const SizedBox(height: 8),
                 const Text('这些信息只保存在本机，之后可在「我的」继续修改。'),
               ],
             ),
           ),
           const SizedBox(height: 24),
+          Row(
+            children: [
+              UserAvatar(
+                imageUrl: _avatarImageUrl,
+                size: 76,
+                imageKey: const Key('basic-info-user-avatar-image'),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _pickAvatar,
+                  icon: const Icon(Icons.photo_camera_outlined),
+                  label: Text(_avatarImageUrl.isEmpty ? '上传头像' : '更换头像'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
           _field(_nicknameController, '昵称'),
           const SizedBox(height: 12),
           _SelectionTile(
@@ -531,10 +570,7 @@ class _UserBasicInfoPageState extends State<UserBasicInfoPage> {
           const SizedBox(height: 24),
           SizedBox(
             height: 52,
-            child: FilledButton(
-              onPressed: _submit,
-              child: const Text('保存档案'),
-            ),
+            child: FilledButton(onPressed: _submit, child: const Text('保存档案')),
           ),
         ],
       ),

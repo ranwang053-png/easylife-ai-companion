@@ -40,10 +40,12 @@ class AuthSession {
     return AuthSession(
       user: AuthUser.fromJson(json['user'] as Map<String, dynamic>),
       tokens: AuthTokenPair.fromJson(json['tokens'] as Map<String, dynamic>),
-      accessTokenExpiresAt:
-          DateTime.parse(json['accessTokenExpiresAt'] as String),
-      refreshTokenExpiresAt:
-          DateTime.parse(json['refreshTokenExpiresAt'] as String),
+      accessTokenExpiresAt: DateTime.parse(
+        json['accessTokenExpiresAt'] as String,
+      ),
+      refreshTokenExpiresAt: DateTime.parse(
+        json['refreshTokenExpiresAt'] as String,
+      ),
     );
   }
 
@@ -52,10 +54,12 @@ class AuthSession {
     return AuthSession(
       user: user,
       tokens: next,
-      accessTokenExpiresAt:
-          issuedAt.add(Duration(seconds: next.accessTokenExpiresIn)),
-      refreshTokenExpiresAt:
-          issuedAt.add(Duration(seconds: next.refreshTokenExpiresIn)),
+      accessTokenExpiresAt: issuedAt.add(
+        Duration(seconds: next.accessTokenExpiresIn),
+      ),
+      refreshTokenExpiresAt: issuedAt.add(
+        Duration(seconds: next.refreshTokenExpiresIn),
+      ),
     );
   }
 
@@ -103,9 +107,7 @@ class SecureAuthSessionStore implements AuthSessionStore {
     final raw = await _storage.read(key: _sessionKey);
     if (raw == null) return null;
     try {
-      return AuthSession.fromJson(
-        jsonDecode(raw) as Map<String, dynamic>,
-      );
+      return AuthSession.fromJson(jsonDecode(raw) as Map<String, dynamic>);
     } on Exception {
       await clearSession();
       return null;
@@ -140,10 +142,7 @@ class MemoryAuthSessionStore implements AuthSessionStore {
 }
 
 class AuthSessionManager {
-  AuthSessionManager({
-    required this.authService,
-    required this.store,
-  });
+  AuthSessionManager({required this.authService, required this.store});
 
   final AuthService authService;
   final AuthSessionStore store;
@@ -182,8 +181,9 @@ class AuthSessionManager {
   Future<String?> validAccessToken() async {
     final current = _session;
     if (current == null) return null;
-    final refreshAt =
-        current.accessTokenExpiresAt.subtract(const Duration(seconds: 30));
+    final refreshAt = current.accessTokenExpiresAt.subtract(
+      const Duration(seconds: 30),
+    );
     if (refreshAt.isAfter(DateTime.now())) {
       return current.tokens.accessToken;
     }

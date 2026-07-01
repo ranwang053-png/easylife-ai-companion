@@ -3,17 +3,29 @@ import '../models/app_models.dart';
 abstract final class AppMock {
   static final weights = [
     WeightRecord(
-        date: DateTime.now().subtract(const Duration(days: 6)), weight: 52.9),
+      date: DateTime.now().subtract(const Duration(days: 6)),
+      weight: 52.9,
+    ),
     WeightRecord(
-        date: DateTime.now().subtract(const Duration(days: 5)), weight: 52.8),
+      date: DateTime.now().subtract(const Duration(days: 5)),
+      weight: 52.8,
+    ),
     WeightRecord(
-        date: DateTime.now().subtract(const Duration(days: 4)), weight: 52.6),
+      date: DateTime.now().subtract(const Duration(days: 4)),
+      weight: 52.6,
+    ),
     WeightRecord(
-        date: DateTime.now().subtract(const Duration(days: 3)), weight: 52.5),
+      date: DateTime.now().subtract(const Duration(days: 3)),
+      weight: 52.5,
+    ),
     WeightRecord(
-        date: DateTime.now().subtract(const Duration(days: 2)), weight: 52.7),
+      date: DateTime.now().subtract(const Duration(days: 2)),
+      weight: 52.7,
+    ),
     WeightRecord(
-        date: DateTime.now().subtract(const Duration(days: 1)), weight: 52.4),
+      date: DateTime.now().subtract(const Duration(days: 1)),
+      weight: 52.4,
+    ),
     WeightRecord(date: DateTime.now(), weight: 52.3),
   ];
 

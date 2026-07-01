@@ -55,9 +55,7 @@ class _SessionAuthService implements AuthService {
   }
 
   @override
-  Future<SendSmsCodeResponse> sendSmsCode(
-    SendSmsCodeRequest request,
-  ) =>
+  Future<SendSmsCodeResponse> sendSmsCode(SendSmsCodeRequest request) =>
       throw UnimplementedError();
 
   @override
@@ -74,10 +72,7 @@ void main() {
     final manager = AuthSessionManager(authService: auth, store: store);
     await manager.establish(_login());
 
-    final restored = AuthSessionManager(
-      authService: auth,
-      store: store,
-    );
+    final restored = AuthSessionManager(authService: auth, store: store);
 
     expect(await restored.restore(), isNotNull);
     expect(await restored.validAccessToken(), startsWith('initial-access'));
@@ -107,7 +102,9 @@ void main() {
     await manager.establish(_login(accessTokenExpiresIn: 0));
 
     await expectLater(
-        manager.validAccessToken(), throwsA(isA<AuthException>()));
+      manager.validAccessToken(),
+      throwsA(isA<AuthException>()),
+    );
     expect(manager.session, isNull);
     expect(store.session, isNull);
   });
@@ -142,31 +139,33 @@ void main() {
     expect((await second.loadProfile()).nickname, '用户二');
   });
 
-  test('legacy local data migrates once to the first authenticated user',
-      () async {
-    final root = MemoryLocalStore();
-    const key = 'easylife.v1.user_profile';
-    await root.setString(key, 'legacy');
+  test(
+    'legacy local data migrates once to the first authenticated user',
+    () async {
+      final root = MemoryLocalStore();
+      const key = 'easylife.v1.user_profile';
+      await root.setString(key, 'legacy');
 
-    await migrateLegacyStoreToUserScope(
-      rootStore: root,
-      userPrefix: 'easylife.user.first',
-      keys: const [key],
-    );
-    await migrateLegacyStoreToUserScope(
-      rootStore: root,
-      userPrefix: 'easylife.user.second',
-      keys: const [key],
-    );
+      await migrateLegacyStoreToUserScope(
+        rootStore: root,
+        userPrefix: 'easylife.user.first',
+        keys: const [key],
+      );
+      await migrateLegacyStoreToUserScope(
+        rootStore: root,
+        userPrefix: 'easylife.user.second',
+        keys: const [key],
+      );
 
-    expect(
-      await PrefixedLocalStore(root, 'easylife.user.first').getString(key),
-      'legacy',
-    );
-    expect(
-      await PrefixedLocalStore(root, 'easylife.user.second').getString(key),
-      isNull,
-    );
-    expect(await root.getString(key), isNull);
-  });
+      expect(
+        await PrefixedLocalStore(root, 'easylife.user.first').getString(key),
+        'legacy',
+      );
+      expect(
+        await PrefixedLocalStore(root, 'easylife.user.second').getString(key),
+        isNull,
+      );
+      expect(await root.getString(key), isNull);
+    },
+  );
 }

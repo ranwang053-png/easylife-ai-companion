@@ -10,15 +10,25 @@
 
 ## Production Prompt
 
-Transform the uploaded subject into a refined premium 3D collectible mascot for Easylife.
+Transform the uploaded subject into a premium full-body cartoon cutout collectible mascot figure for Easylife.
 
-Preserve the subject's recognizable identity, distinctive colors, markings, silhouette, facial features, hairstyle, clothing cues, or pet traits.
+Preserve the subject's recognizable identity and the most important visual cues: face shape, hairstyle, outfit colors, accessories, posture, distinctive markings, silhouette, or pet traits.
 
-Use a warm animated-feature character quality with rounded soft proportions, expressive eyes, a calm friendly expression, detailed toy-grade materials, subtle subsurface scattering, and soft studio lighting. The result should feel elegant, comforting, adult-friendly, and suitable for a premium lifestyle companion app.
+If the uploaded photo is a portrait, bust, half-body, sitting pose, cropped photo, or only shows the upper body, still create a complete standing full-body character. Infer a plausible lower body, shoes, paws, outfit continuation, and balanced toy proportions from the visible style cues. Do not crop the final character.
 
-Create a front-facing, full-body, centered composition on a clean background with enough margin for app cropping.
+Style target: a warm high-end 3D animated collectible toy, blind-box figure, elegant lifestyle mascot. Use large expressive eyes, rounded soft proportions, a slightly chubby but graceful body, a calm friendly expression, detailed toy-grade materials, subtle subsurface scattering, and soft studio lighting.
 
-Avoid generic identity, childish or exaggerated styling, heavy blush, harsh shadows, busy backgrounds, text, logos, watermarks, extra limbs, distorted anatomy, cropped bodies, scary expressions, and low-quality rendering.
+Composition must be a complete standing character cutout, front-facing or slight three-quarter view, visible from head to shoes/paws, centered with generous transparent margin around the whole body so the app can crop safely. The character should occupy about 62-70% of the canvas height, leaving at least 12% transparent padding above the head/hair/hat, below the shoes/paws, and on both sides. Do not let any body part touch or approach the canvas edge. Not a portrait, not a bust, not only head and shoulders.
+
+Clothing and accessory details matter. Reinterpret the uploaded outfit as layered premium toy clothing with clear fabric folds, scarf/jewelry/bag details when present, refined texture, and a polished collectible finish.
+
+Mood: warm, friendly, comforting, premium, elegant, adult-friendly, cute but not childish, highly appealing as a companion app character.
+
+Output should be a transparent-background PNG-style cutout: no scene, no floor, no room, no outdoor background, no border, no text.
+
+If style reference images are provided, use them only for visual style, material, rendering quality, proportions, and finish. Do not copy the reference subject's identity, face, outfit, logo, text, or background.
+
+Avoid generic identity, over-realistic human skin, flat avatar icon style, cropped body, close-up portrait, head-only mascot, heavy blush, harsh shadows, busy backgrounds, text, logos, watermarks, extra limbs, distorted anatomy, scary expressions, and low-quality rendering.
 
 ## Storage And Privacy
 

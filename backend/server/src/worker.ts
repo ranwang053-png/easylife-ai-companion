@@ -1,3 +1,5 @@
+import "./env.js";
+
 import { randomUUID } from "node:crypto";
 
 import { loadConfig, type AppConfig } from "./config.js";

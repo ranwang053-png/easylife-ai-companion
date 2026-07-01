@@ -8,16 +8,11 @@ import '../models/auth_models.dart';
 abstract interface class AuthService {
   Future<SendSmsCodeResponse> sendSmsCode(SendSmsCodeRequest request);
 
-  Future<LoginVerificationResponse> verifySmsCode(
-    VerifySmsCodeRequest request,
-  );
+  Future<LoginVerificationResponse> verifySmsCode(VerifySmsCodeRequest request);
 
   Future<AuthTokenPair> refreshTokens(RefreshTokenRequest request);
 
-  Future<void> logout({
-    required String accessToken,
-    required String deviceId,
-  });
+  Future<void> logout({required String accessToken, required String deviceId});
 }
 
 AuthService createAuthService() {
@@ -34,13 +29,8 @@ class HttpAuthService implements AuthService {
   final http.Client _client;
 
   @override
-  Future<SendSmsCodeResponse> sendSmsCode(
-    SendSmsCodeRequest request,
-  ) async {
-    final json = await _postJson(
-      '/v1/auth/sms/codes',
-      request.toJson(),
-    );
+  Future<SendSmsCodeResponse> sendSmsCode(SendSmsCodeRequest request) async {
+    final json = await _postJson('/v1/auth/sms/codes', request.toJson());
     return SendSmsCodeResponse.fromJson(json);
   }
 
@@ -48,19 +38,13 @@ class HttpAuthService implements AuthService {
   Future<LoginVerificationResponse> verifySmsCode(
     VerifySmsCodeRequest request,
   ) async {
-    final json = await _postJson(
-      '/v1/auth/sms/verify',
-      request.toJson(),
-    );
+    final json = await _postJson('/v1/auth/sms/verify', request.toJson());
     return LoginVerificationResponse.fromJson(json);
   }
 
   @override
   Future<AuthTokenPair> refreshTokens(RefreshTokenRequest request) async {
-    final json = await _postJson(
-      '/v1/auth/token/refresh',
-      request.toJson(),
-    );
+    final json = await _postJson('/v1/auth/token/refresh', request.toJson());
     return AuthTokenPair.fromJson(json);
   }
 
@@ -151,9 +135,7 @@ class UnavailableAuthService implements AuthService {
       _unavailable();
 
   @override
-  Future<SendSmsCodeResponse> sendSmsCode(
-    SendSmsCodeRequest request,
-  ) async =>
+  Future<SendSmsCodeResponse> sendSmsCode(SendSmsCodeRequest request) async =>
       _unavailable();
 
   @override
@@ -168,6 +150,8 @@ class FixedExampleAuthService implements AuthService {
 
   static const deviceId = '6ecb2ba5-6c51-4a40-b908-8be4311c7f85';
   static const exampleCode = '123456';
+  static const exampleAccessToken =
+      'example-access-token-with-at-least-twenty-characters';
 
   static const _sendResponse = <String, dynamic>{
     'challengeId': '984e6346-f8a1-4511-8ec2-a960bc338705',
@@ -183,7 +167,7 @@ class FixedExampleAuthService implements AuthService {
       'phoneMasked': '138****5678',
     },
     'tokens': {
-      'accessToken': 'example-access-token-with-at-least-twenty-characters',
+      'accessToken': exampleAccessToken,
       'accessTokenExpiresIn': 900,
       'refreshToken': 'example-refresh-token-with-at-least-twenty-characters',
       'refreshTokenExpiresIn': 2592000,
@@ -191,9 +175,7 @@ class FixedExampleAuthService implements AuthService {
   };
 
   @override
-  Future<SendSmsCodeResponse> sendSmsCode(
-    SendSmsCodeRequest request,
-  ) async {
+  Future<SendSmsCodeResponse> sendSmsCode(SendSmsCodeRequest request) async {
     _validatePhone(request.phone);
     if (request.purpose != SmsPurpose.login || request.deviceId.isEmpty) {
       throw const AuthException(

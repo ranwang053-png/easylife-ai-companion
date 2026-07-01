@@ -1,0 +1,9 @@
+{
+  "imageDataUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+  "subjectDescription": "白色小猫，性格安静。",
+  "client": {
+    "platform": "web",
+    "appVersion": "0.3.0+3",
+    "locale": "zh-CN"
+  }
+}

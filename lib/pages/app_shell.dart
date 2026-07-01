@@ -63,9 +63,7 @@ class _AppShellState extends State<AppShell> {
   }
 
   Future<void> _openSettings() async {
-    await Navigator.of(
-      context,
-    ).push(
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => SettingsPage(
           agentService: widget.agentService,
@@ -85,6 +83,7 @@ class _AppShellState extends State<AppShell> {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) => PetProfileFormPage(
+            agentService: widget.agentService,
             petProfileService: widget.petProfileService,
             initialProfile: petProfile,
             onCompleted: _onPetProfileCompleted,
@@ -300,10 +299,7 @@ class _DesktopNavigation extends StatelessWidget {
                   ),
                 ),
               const Spacer(),
-              Text(
-                '快捷记录',
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
+              Text('快捷记录', style: Theme.of(context).textTheme.labelMedium),
               const SizedBox(height: 10),
               for (final action in DashboardMock.quickActions)
                 Padding(

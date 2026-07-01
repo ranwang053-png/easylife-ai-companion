@@ -44,6 +44,7 @@ class _DietRecognitionConfirmPageState
   late MealType _mealType;
   late DateTime _recordTime;
   var _isCalculating = false;
+  var _isConfirming = false;
 
   static const _portions = ['一整份', '半份', '半袋', '半个', '一小块', '一杯'];
 
@@ -65,6 +66,7 @@ class _DietRecognitionConfirmPageState
   }
 
   Future<void> _recalculate() async {
+    if (_isCalculating || _isConfirming) return;
     setState(() => _isCalculating = true);
     final profile = await widget.userProfileService.loadProfile();
     final estimate = await widget.agentService.estimateFoodCalories(
@@ -91,12 +93,19 @@ class _DietRecognitionConfirmPageState
     if (!mounted || time == null) return;
     final now = DateTime.now();
     setState(() {
-      _recordTime =
-          DateTime(now.year, now.month, now.day, time.hour, time.minute);
+      _recordTime = DateTime(
+        now.year,
+        now.month,
+        now.day,
+        time.hour,
+        time.minute,
+      );
     });
   }
 
   Future<void> _confirm() async {
+    if (_isCalculating || _isConfirming) return;
+    setState(() => _isConfirming = true);
     final record = MealRecord(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       date: DateTime.now(),
@@ -117,7 +126,11 @@ class _DietRecognitionConfirmPageState
     final result = await Navigator.of(context).push<MealRecord>(
       MaterialPageRoute(builder: (_) => FoodStickerEditorPage(record: record)),
     );
-    if (!mounted || result == null) return;
+    if (!mounted) return;
+    if (result == null) {
+      setState(() => _isConfirming = false);
+      return;
+    }
     Navigator.of(context).pop(result);
   }
 
@@ -166,6 +179,7 @@ class _DietRecognitionConfirmPageState
           const SizedBox(height: 16),
           TextField(
             controller: _nameController,
+            enabled: !_isCalculating && !_isConfirming,
             decoration: const InputDecoration(labelText: '食物名称'),
           ),
           const SizedBox(height: 12),
@@ -176,9 +190,11 @@ class _DietRecognitionConfirmPageState
               for (final portion in _portions)
                 DropdownMenuItem(value: portion, child: Text(portion)),
             ],
-            onChanged: (value) {
-              if (value != null) setState(() => _portionText = value);
-            },
+            onChanged: _isCalculating || _isConfirming
+                ? null
+                : (value) {
+                    if (value != null) setState(() => _portionText = value);
+                  },
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<MealType>(
@@ -188,9 +204,11 @@ class _DietRecognitionConfirmPageState
               for (final meal in MealType.values)
                 DropdownMenuItem(value: meal, child: Text(meal.label)),
             ],
-            onChanged: (value) {
-              if (value != null) setState(() => _mealType = value);
-            },
+            onChanged: _isCalculating || _isConfirming
+                ? null
+                : (value) {
+                    if (value != null) setState(() => _mealType = value);
+                  },
           ),
           const SizedBox(height: 12),
           ListTile(
@@ -201,10 +219,11 @@ class _DietRecognitionConfirmPageState
               '${_recordTime.minute.toString().padLeft(2, '0')}',
             ),
             trailing: const Icon(Icons.schedule_rounded),
-            onTap: _pickTime,
+            onTap: _isCalculating || _isConfirming ? null : _pickTime,
           ),
           TextField(
             controller: _noteController,
+            enabled: !_isCalculating && !_isConfirming,
             decoration: const InputDecoration(
               labelText: '备注',
               hintText: '例如：今天很想吃甜的',
@@ -228,7 +247,7 @@ class _DietRecognitionConfirmPageState
           ),
           const SizedBox(height: 18),
           OutlinedButton.icon(
-            onPressed: _isCalculating ? null : _recalculate,
+            onPressed: _isCalculating || _isConfirming ? null : _recalculate,
             icon: const Icon(Icons.refresh_rounded),
             label: Text(_isCalculating ? '重新计算中...' : '重新计算热量'),
           ),
@@ -236,8 +255,8 @@ class _DietRecognitionConfirmPageState
           SizedBox(
             height: 52,
             child: FilledButton(
-              onPressed: _confirm,
-              child: const Text('确认，制作贴纸'),
+              onPressed: _isCalculating || _isConfirming ? null : _confirm,
+              child: Text(_isConfirming ? '正在制作…' : '确认，制作贴纸'),
             ),
           ),
         ],

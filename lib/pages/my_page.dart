@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../models/pet_profile.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
-import '../widgets/companion_pet.dart';
 import '../widgets/page_header.dart';
 import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
+import '../widgets/user_avatar.dart';
 
 class MyPage extends StatelessWidget {
   const MyPage({
@@ -52,15 +52,11 @@ class MyPage extends StatelessWidget {
                 borderColor: AppColors.outlineSoft,
                 child: Row(
                   children: [
-                    Container(
-                      width: 84,
-                      height: 84,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: .72),
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: const CompanionPet(size: 72),
+                    UserAvatar(
+                      key: const Key('my-page-user-avatar'),
+                      profile: profile,
+                      size: 84,
+                      imageKey: const Key('my-page-user-avatar-image'),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -73,9 +69,10 @@ class MyPage extends StatelessWidget {
                           ),
                           const SizedBox(height: 5),
                           Text(
-                            [profile.occupation, profile.mbti]
-                                .where((item) => item.isNotEmpty)
-                                .join(' · '),
+                            [
+                              profile.occupation,
+                              profile.mbti,
+                            ].where((item) => item.isNotEmpty).join(' · '),
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           const SizedBox(height: 10),

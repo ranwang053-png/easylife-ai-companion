@@ -58,15 +58,17 @@ class _DietCapturePageState extends State<DietCapturePage> {
   }
 
   Future<void> _analyze() async {
+    if (_isAnalyzing) return;
     final description = _descriptionController.text.trim();
     final ingredients = _ingredientsController.text.trim();
     if (_imagePath == null && description.isEmpty && ingredients.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('拍张照片，或写下刚刚吃了什么')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('拍张照片，或写下刚刚吃了什么')));
       return;
     }
     setState(() => _isAnalyzing = true);
+    final mealType = _mealType;
     final portionText = _portionFrom('$description $ingredients');
     final profile = await widget.userProfileService.loadProfile();
     final estimate = await widget.agentService.estimateFoodCalories(
@@ -74,7 +76,7 @@ class _DietCapturePageState extends State<DietCapturePage> {
       imagePath: _imagePath,
       ingredientsText: ingredients.isEmpty ? null : ingredients,
       portionText: portionText,
-      mealType: _mealType.label,
+      mealType: mealType.label,
       profile: profile,
     );
     if (!mounted) return;
@@ -96,7 +98,7 @@ class _DietCapturePageState extends State<DietCapturePage> {
           description: description,
           imagePath: _imagePath,
           ingredientsText: ingredients,
-          mealType: _mealType,
+          mealType: mealType,
           sourceType: sourceType,
         ),
       ),
@@ -150,7 +152,8 @@ class _DietCapturePageState extends State<DietCapturePage> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => _selectMockImage('camera'),
+                  onPressed:
+                      _isAnalyzing ? null : () => _selectMockImage('camera'),
                   icon: const Icon(Icons.camera_alt_outlined),
                   label: const Text('拍照'),
                 ),
@@ -158,7 +161,8 @@ class _DietCapturePageState extends State<DietCapturePage> {
               const SizedBox(width: 10),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => _selectMockImage('gallery'),
+                  onPressed:
+                      _isAnalyzing ? null : () => _selectMockImage('gallery'),
                   icon: const Icon(Icons.photo_library_outlined),
                   label: const Text('相册'),
                 ),
@@ -168,6 +172,7 @@ class _DietCapturePageState extends State<DietCapturePage> {
           const SizedBox(height: 18),
           TextField(
             controller: _descriptionController,
+            enabled: !_isAnalyzing,
             minLines: 2,
             maxLines: 4,
             decoration: const InputDecoration(
@@ -179,6 +184,7 @@ class _DietCapturePageState extends State<DietCapturePage> {
           const SizedBox(height: 14),
           TextField(
             controller: _ingredientsController,
+            enabled: !_isAnalyzing,
             minLines: 2,
             maxLines: 4,
             decoration: const InputDecoration(
@@ -197,7 +203,9 @@ class _DietCapturePageState extends State<DietCapturePage> {
                 ChoiceChip(
                   label: Text(meal.label),
                   selected: meal == _mealType,
-                  onSelected: (_) => setState(() => _mealType = meal),
+                  onSelected: _isAnalyzing
+                      ? null
+                      : (_) => setState(() => _mealType = meal),
                 ),
             ],
           ),

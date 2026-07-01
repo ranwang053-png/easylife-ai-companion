@@ -3,15 +3,19 @@ import 'package:flutter/material.dart';
 import 'package:file_selector/file_selector.dart';
 
 import '../models/pet_profile.dart';
+import '../services/agent_service.dart';
 import '../services/pet_profile_service.dart';
 import '../theme/app_colors.dart';
-import '../widgets/companion_pet.dart';
+import '../utils/pet_image_picker.dart';
+import '../widgets/ai_privacy_dialog.dart';
+import '../widgets/companion_avatar.dart';
 import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 import 'pet_profile_success_page.dart';
 
 class PetProfileFormPage extends StatefulWidget {
   const PetProfileFormPage({
+    required this.agentService,
     required this.onCompleted,
     required this.petProfileService,
     this.originalPhotoUrl,
@@ -23,6 +27,7 @@ class PetProfileFormPage extends StatefulWidget {
   final String? originalPhotoUrl;
   final String? generatedAvatarUrl;
   final PetProfile? initialProfile;
+  final AgentService agentService;
   final ValueChanged<PetProfile> onCompleted;
   final PetProfileService petProfileService;
 
@@ -38,8 +43,11 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
   late List<String> _selectedTags;
   String _profileSource = '';
   String _personalitySummary = '';
+  String? _originalPhotoUrl;
+  String? _generatedAvatarUrl;
   String? _nameError;
   var _isSaving = false;
+  var _isGeneratingAvatar = false;
 
   static const _tags = ['温柔', '活泼', '理性', '安静', '幽默', '治愈'];
   static const _relationships = ['宠物', '恋人', '朋友', '家人', '偶像', '导师', '其他'];
@@ -62,6 +70,9 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
     _selectedTags = [...?profile?.personalityTags];
     _profileSource = profile?.profileSource ?? '';
     _personalitySummary = profile?.personalitySummary ?? '';
+    _originalPhotoUrl = widget.originalPhotoUrl ?? profile?.originalPhotoUrl;
+    _generatedAvatarUrl =
+        widget.generatedAvatarUrl ?? profile?.generatedAvatarUrl;
   }
 
   @override
@@ -236,6 +247,49 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
     if (result != null && mounted) setState(() => _selectedTags = result);
   }
 
+  Future<void> _replaceAvatar() async {
+    if (_isGeneratingAvatar || _isSaving) return;
+    try {
+      final image = await pickPetImage(preferCamera: false);
+      if (!mounted || image == null) return;
+      final useAi = await showAiPrivacyDialog(context);
+      if (!mounted || useAi == null) return;
+      if (!useAi) {
+        setState(() {
+          _originalPhotoUrl = image.dataUrl;
+          _generatedAvatarUrl = image.dataUrl;
+        });
+        return;
+      }
+      setState(() => _isGeneratingAvatar = true);
+      final generated = await widget.agentService.generatePetAvatarFromPhoto(
+        image.dataUrl,
+      );
+      if (!mounted) return;
+      setState(() {
+        _originalPhotoUrl = image.dataUrl;
+        _generatedAvatarUrl = generated;
+      });
+    } on PetImagePickerException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } on AgentServiceException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('形象生成失败，请稍后再试')));
+    } finally {
+      if (mounted) setState(() => _isGeneratingAvatar = false);
+    }
+  }
+
   Future<String?> _selectOption({
     required String title,
     required List<String> options,
@@ -317,14 +371,9 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    '伙伴档案分析',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
+                  Text('伙伴档案分析', style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 6),
-                  const Text(
-                    '可通过网页链接或文档资料辅助生成伙伴档案分析。人物识别需要来源授权、身份核验与隐私保护。',
-                  ),
+                  const Text('可通过网页链接或文档资料辅助生成伙伴档案分析。人物识别需要来源授权、身份核验与隐私保护。'),
                   const SizedBox(height: 16),
                   TextField(
                     controller: sourceController,
@@ -382,15 +431,12 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
                       onPressed: () {
                         final source = sourceController.text.trim();
                         final name = _nameController.text.trim();
-                        Navigator.pop(
-                          context,
-                          (
-                            source,
-                            '${name.isEmpty ? '这位伙伴' : name}给人的感觉温和、可靠，'
-                                '更适合用耐心倾听、适度幽默和明确鼓励的方式陪伴你。',
-                            const ['温柔', '可靠', '善于倾听'],
-                          ),
-                        );
+                        Navigator.pop(context, (
+                          source,
+                          '${name.isEmpty ? '这位伙伴' : name}给人的感觉温和、可靠，'
+                              '更适合用耐心倾听、适度幽默和明确鼓励的方式陪伴你。',
+                          const ['温柔', '可靠', '善于倾听'],
+                        ));
                       },
                       icon: const Icon(Icons.auto_awesome_rounded),
                       label: const Text('开始分析'),
@@ -432,9 +478,8 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
       personalityTags:
           _selectedTags.isEmpty ? const ['治愈'] : [..._selectedTags],
       relationshipNote: _relationship.isEmpty ? '伙伴' : _relationship,
-      originalPhotoUrl: widget.originalPhotoUrl ?? existing?.originalPhotoUrl,
-      generatedAvatarUrl:
-          widget.generatedAvatarUrl ?? existing?.generatedAvatarUrl,
+      originalPhotoUrl: _originalPhotoUrl,
+      generatedAvatarUrl: _generatedAvatarUrl,
       createdAt: existing?.createdAt ?? DateTime.now(),
       profileSource: _profileSource,
       personalitySummary: _personalitySummary,
@@ -496,7 +541,12 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
             borderColor: AppColors.outlineSoft,
             child: Row(
               children: [
-                const CompanionPet(size: 88),
+                CompanionAvatar(
+                  profile: widget.initialProfile,
+                  imageUrl: _generatedAvatarUrl,
+                  size: 88,
+                  imageKey: const Key('pet-profile-form-avatar-image'),
+                ),
                 const SizedBox(width: 18),
                 Expanded(
                   child: Column(
@@ -515,6 +565,16 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
                               color: AppColors.secondaryInk,
                               height: 1.45,
                             ),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        onPressed: _isSaving || _isGeneratingAvatar
+                            ? null
+                            : _replaceAvatar,
+                        icon: const Icon(Icons.photo_camera_outlined),
+                        label: Text(
+                          _isGeneratingAvatar ? '正在生成形象…' : '更换伙伴形象',
+                        ),
                       ),
                     ],
                   ),
@@ -612,10 +672,7 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
 }
 
 class _FormSection extends StatelessWidget {
-  const _FormSection({
-    required this.title,
-    required this.children,
-  });
+  const _FormSection({required this.title, required this.children});
 
   final String title;
   final List<Widget> children;
@@ -629,9 +686,9 @@ class _FormSection extends StatelessWidget {
         children: [
           Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 16),
           for (var index = 0; index < children.length; index++) ...[

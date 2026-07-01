@@ -79,10 +79,7 @@ class AuthUser {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'phoneMasked': phoneMasked,
-      };
+  Map<String, dynamic> toJson() => {'id': id, 'phoneMasked': phoneMasked};
 }
 
 class AuthTokenPair {
@@ -150,9 +147,7 @@ class LoginVerificationResponse {
       ),
       isNewUser: json['isNewUser'] as bool,
       user: AuthUser.fromJson(json['user'] as Map<String, dynamic>),
-      tokens: AuthTokenPair.fromJson(
-        json['tokens'] as Map<String, dynamic>,
-      ),
+      tokens: AuthTokenPair.fromJson(json['tokens'] as Map<String, dynamic>),
     );
   }
 }

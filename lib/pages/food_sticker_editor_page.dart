@@ -14,6 +14,7 @@ class FoodStickerEditorPage extends StatefulWidget {
 
 class _FoodStickerEditorPageState extends State<FoodStickerEditorPage> {
   var _style = '白色描边';
+  var _isSaving = false;
 
   static const _styles = ['白色描边', '浅绿色描边', '浅黄色描边'];
 
@@ -22,6 +23,14 @@ class _FoodStickerEditorPageState extends State<FoodStickerEditorPage> {
         '浅黄色描边' => const Color(0xFFF0D58F),
         _ => Colors.white,
       };
+
+  Future<void> _save() async {
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
+    await Future<void>.delayed(Duration.zero);
+    if (!mounted) return;
+    Navigator.of(context).pop(widget.record.copyWith(stickerStyle: _style));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,7 +122,9 @@ class _FoodStickerEditorPageState extends State<FoodStickerEditorPage> {
                   ChoiceChip(
                     label: Text(style),
                     selected: style == _style,
-                    onSelected: (_) => setState(() => _style = style),
+                    onSelected: _isSaving
+                        ? null
+                        : (_) => setState(() => _style = style),
                   ),
               ],
             ),
@@ -122,17 +133,13 @@ class _FoodStickerEditorPageState extends State<FoodStickerEditorPage> {
               width: double.infinity,
               height: 52,
               child: FilledButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pop(
-                    widget.record.copyWith(stickerStyle: _style),
-                  );
-                },
+                onPressed: _isSaving ? null : _save,
                 icon: const Icon(Icons.bookmark_add_outlined),
-                label: const Text('贴到今日手帐'),
+                label: Text(_isSaving ? '正在保存…' : '贴到今日手帐'),
               ),
             ),
             TextButton(
-              onPressed: () => Navigator.of(context).pop(),
+              onPressed: _isSaving ? null : () => Navigator.of(context).pop(),
               child: const Text('重新编辑'),
             ),
           ],

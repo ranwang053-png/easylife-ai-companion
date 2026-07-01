@@ -44,6 +44,7 @@ class HealthPageState extends State<HealthPage> {
   var _targetWeight = 48.0;
   var _hasSeenDietGuide = false;
   var _isLoadingData = true;
+  var _isOpeningDietRecord = false;
   MealPlanSuggestion? _mealPlan;
 
   @override
@@ -114,10 +115,7 @@ class HealthPageState extends State<HealthPage> {
     if (!mounted || result == null) return;
     setState(() {
       _weight = result;
-      final record = WeightRecord(
-        date: DateTime.now(),
-        weight: result,
-      );
+      final record = WeightRecord(date: DateTime.now(), weight: result);
       final lastRecord = _weights.isEmpty ? null : _weights.last;
       final isSameDay = lastRecord != null &&
           lastRecord.date.year == record.date.year &&
@@ -137,6 +135,8 @@ class HealthPageState extends State<HealthPage> {
   void startQuickMeal() => _openDietRecord();
 
   Future<void> _openDietRecord({MealType? meal}) async {
+    if (_isOpeningDietRecord) return;
+    _isOpeningDietRecord = true;
     final page = _hasSeenDietGuide
         ? DietCapturePage(
             agentService: widget.agentService,
@@ -149,18 +149,19 @@ class HealthPageState extends State<HealthPage> {
             onCaptureStarted: _markDietGuideSeen,
             initialMeal: meal,
           );
-    final record = await Navigator.of(context).push<MealRecord>(
-      MaterialPageRoute(builder: (_) => page),
-    );
+    final record = await Navigator.of(
+      context,
+    ).push<MealRecord>(MaterialPageRoute(builder: (_) => page));
     if (!mounted) return;
+    _isOpeningDietRecord = false;
     if (record == null) return;
     setState(() => _foodLogs.add(record));
     await widget.journalRepository.saveMealRecords(_foodLogs);
     await _refreshMealPlan();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('${record.foodName}已贴到今日饮食手帐')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('${record.foodName}已贴到今日饮食手帐')));
   }
 
   Future<void> _markDietGuideSeen() async {
@@ -193,9 +194,7 @@ class HealthPageState extends State<HealthPage> {
   @override
   Widget build(BuildContext context) {
     if (_isLoadingData) {
-      return const SafeArea(
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return const SafeArea(child: Center(child: CircularProgressIndicator()));
     }
     final totalCalories = _foodLogs.fold<int>(
       0,
@@ -208,10 +207,7 @@ class HealthPageState extends State<HealthPage> {
         maxWidth: 920,
         bottom: ResponsivePage.isWide(context) ? 40 : 126,
         children: [
-          const PageHeader(
-            title: '饮食体重',
-            subtitle: '不用称重，轻松记下今天吃过的东西',
-          ),
+          const PageHeader(title: '饮食体重', subtitle: '不用称重，轻松记下今天吃过的东西'),
           const SizedBox(height: 20),
           _WeightCard(
             weight: _weight,
@@ -564,15 +560,14 @@ class _DietTimelinePageState extends State<DietTimelinePage> {
                   icon: const Icon(Icons.arrow_back_rounded),
                 ),
                 const Spacer(),
-                Text(_periodLabel(currentPeriod),
-                    style: Theme.of(context).textTheme.labelMedium),
+                Text(
+                  _periodLabel(currentPeriod),
+                  style: Theme.of(context).textTheme.labelMedium,
+                ),
               ],
             ),
             const SizedBox(height: 12),
-            const PageHeader(
-              title: '饮食回顾',
-              subtitle: '上一期、本期和下一期建议，帮你看见饮食结构',
-            ),
+            const PageHeader(title: '饮食回顾', subtitle: '上一期、本期和下一期建议，帮你看见饮食结构'),
             const SizedBox(height: 16),
             _DietRangeSelector(
               selected: _range,
@@ -607,10 +602,7 @@ class _DietTimelinePageState extends State<DietTimelinePage> {
 }
 
 class _DietRangeSelector extends StatelessWidget {
-  const _DietRangeSelector({
-    required this.selected,
-    required this.onChanged,
-  });
+  const _DietRangeSelector({required this.selected, required this.onChanged});
 
   final _DietTimelineRange selected;
   final ValueChanged<_DietTimelineRange> onChanged;
@@ -702,8 +694,10 @@ class _DietReviewCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child:
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
               Text(period, style: Theme.of(context).textTheme.labelMedium),
             ],
@@ -737,8 +731,9 @@ class _DietReviewCard extends StatelessWidget {
           const SizedBox(height: 14),
           Text(
             review.summary(range),
-            style:
-                Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.55),
+            style: Theme.of(
+              context,
+            ).textTheme.bodyMedium?.copyWith(height: 1.55),
           ),
           const SizedBox(height: 14),
           _DietInsightWrap(review: review),
@@ -782,8 +777,10 @@ class _DietNextAdviceCard extends StatelessWidget {
               ),
               const SizedBox(width: 11),
               Expanded(
-                child:
-                    Text(title, style: Theme.of(context).textTheme.titleMedium),
+                child: Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ),
             ],
           ),
@@ -792,15 +789,16 @@ class _DietNextAdviceCard extends StatelessWidget {
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('• ',
-                    style: TextStyle(color: AppColors.primaryDark)),
+                const Text(
+                  '• ',
+                  style: TextStyle(color: AppColors.primaryDark),
+                ),
                 Expanded(
                   child: Text(
                     advice,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodyMedium
-                        ?.copyWith(height: 1.55),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(height: 1.55),
                   ),
                 ),
               ],
@@ -947,8 +945,11 @@ class _DietReview {
     );
     final dayTotals = <DateTime, int>{};
     for (final record in records) {
-      final date =
-          DateTime(record.date.year, record.date.month, record.date.day);
+      final date = DateTime(
+        record.date.year,
+        record.date.month,
+        record.date.day,
+      );
       dayTotals[date] = (dayTotals[date] ?? 0) + record.estimatedCalories;
     }
     final highestDay = dayTotals.entries.reduce(
@@ -1103,8 +1104,10 @@ class _FoodCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        border:
-            Border.all(color: stickerBorder.withValues(alpha: .7), width: 2),
+        border: Border.all(
+          color: stickerBorder.withValues(alpha: .7),
+          width: 2,
+        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.primaryDark.withValues(alpha: .07),
@@ -1137,9 +1140,9 @@ class _FoodCard extends StatelessWidget {
             food.foodName,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: AppColors.ink,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: AppColors.ink),
           ),
           const Spacer(),
           Row(
@@ -1193,8 +1196,10 @@ class _AddFoodCard extends StatelessWidget {
             children: [
               const Icon(Icons.add_circle_outline_rounded, size: 30),
               const SizedBox(height: 8),
-              Text('添加${meal.label}',
-                  style: Theme.of(context).textTheme.labelMedium),
+              Text(
+                '添加${meal.label}',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
               const SizedBox(height: 3),
               const Text(
                 '制作贴纸',

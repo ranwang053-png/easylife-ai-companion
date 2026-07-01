@@ -6,7 +6,7 @@ import '../services/agent_service.dart';
 import '../services/journal_repository.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
-import '../widgets/companion_pet.dart';
+import '../widgets/companion_avatar.dart';
 import '../widgets/page_header.dart';
 import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
@@ -100,6 +100,7 @@ class CompanionPageState extends State<CompanionPage> {
     final insight = await widget.agentService.analyzeEmotion(
       conversationText,
       profile,
+      companion: widget.petProfile,
     );
     if (!mounted) return;
     setState(() {
@@ -172,6 +173,21 @@ class CompanionPageState extends State<CompanionPage> {
       _isRecorded = false;
       _savedUserMessageCount = 0;
     });
+    _inputFocusNode.requestFocus();
+  }
+
+  void _clearCurrentConversation() {
+    if (_isAnalyzing || _conversation.isEmpty) return;
+    setState(() {
+      _conversation.clear();
+      _insight = null;
+      _isRecorded = false;
+      _savedUserMessageCount = 0;
+      _petStatus = _companionStatusForLatestLog(
+        _history.isEmpty ? null : _history.first,
+      );
+    });
+    _controller.clear();
     _inputFocusNode.requestFocus();
   }
 
@@ -313,12 +329,10 @@ class CompanionPageState extends State<CompanionPage> {
         maxWidth: 820,
         bottom: ResponsivePage.isWide(context) ? 40 : 126,
         children: [
-          PageHeader(
-            title: '陪伴',
-            subtitle: '记录真实情绪，让$petName安静地陪你理解自己',
-          ),
+          PageHeader(title: '陪伴', subtitle: '记录真实情绪，让$petName安静地陪你理解自己'),
           const SizedBox(height: 20),
           _PetPanel(
+            profile: widget.petProfile,
             petName: petName,
             hasPetProfile: widget.petProfile != null,
             status: _petStatus,
@@ -397,9 +411,7 @@ class CompanionPageState extends State<CompanionPage> {
                             ),
                           )
                         : const Icon(Icons.send_rounded),
-                    label: Text(
-                      _isAnalyzing ? '$petName正在回复…' : '发送',
-                    ),
+                    label: Text(_isAnalyzing ? '$petName正在回复…' : '发送'),
                   ),
                 ),
               ],
@@ -409,8 +421,10 @@ class CompanionPageState extends State<CompanionPage> {
             const SizedBox(height: 22),
             _SaveMoodJournalCard(
               canSave: canSaveMood,
+              canClear: !_isAnalyzing,
               isRecorded: _isRecorded,
               onRecord: _recordMood,
+              onClear: _clearCurrentConversation,
             ),
           ],
           const SizedBox(height: 24),
@@ -431,10 +445,7 @@ class CompanionPageState extends State<CompanionPage> {
 }
 
 class _ConversationTurn {
-  const _ConversationTurn({
-    required this.text,
-    required this.isUser,
-  });
+  const _ConversationTurn({required this.text, required this.isUser});
 
   factory _ConversationTurn.user(String text) =>
       _ConversationTurn(text: text, isUser: true);
@@ -503,8 +514,10 @@ class _ConversationThread extends StatelessWidget {
                   turn.isUser ? Alignment.centerRight : Alignment.centerLeft,
               child: Container(
                 constraints: const BoxConstraints(maxWidth: 590),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 11,
+                ),
                 decoration: BoxDecoration(
                   color:
                       turn.isUser ? AppColors.primaryDark : AppColors.softGreen,
@@ -539,6 +552,7 @@ class _ConversationThread extends StatelessWidget {
 
 class _PetPanel extends StatelessWidget {
   const _PetPanel({
+    required this.profile,
     required this.petName,
     required this.hasPetProfile,
     required this.status,
@@ -546,6 +560,7 @@ class _PetPanel extends StatelessWidget {
     required this.onCreatePetProfile,
   });
 
+  final PetProfile? profile;
   final String petName;
   final bool hasPetProfile;
   final String status;
@@ -559,7 +574,11 @@ class _PetPanel extends StatelessWidget {
       borderColor: AppColors.outlineSoft,
       child: Row(
         children: [
-          const CompanionPet(size: 132),
+          CompanionAvatar(
+            profile: profile,
+            size: 132,
+            imageKey: const Key('companion-page-avatar-image'),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -606,9 +625,9 @@ class _PetPanel extends StatelessWidget {
                   ),
                   child: Text(
                     reply,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: AppColors.ink,
-                        ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: AppColors.ink),
                   ),
                 ),
                 if (!hasPetProfile) ...[
@@ -631,13 +650,17 @@ class _PetPanel extends StatelessWidget {
 class _SaveMoodJournalCard extends StatelessWidget {
   const _SaveMoodJournalCard({
     required this.canSave,
+    required this.canClear,
     required this.isRecorded,
     required this.onRecord,
+    required this.onClear,
   });
 
   final bool canSave;
+  final bool canClear;
   final bool isRecorded;
   final VoidCallback onRecord;
+  final VoidCallback onClear;
 
   @override
   Widget build(BuildContext context) {
@@ -647,10 +670,7 @@ class _SaveMoodJournalCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '想留下这一段吗？',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          Text('想留下这一段吗？', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
             '我会在你点击保存后，再把这段对话整理成情绪日记。',
@@ -668,6 +688,15 @@ class _SaveMoodJournalCard extends StatelessWidget {
                 isRecorded ? Icons.check_rounded : Icons.edit_note_rounded,
               ),
               label: Text(isRecorded ? '已保存情绪日记' : '保存情绪日记'),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: canClear ? onClear : null,
+              icon: const Icon(Icons.delete_sweep_outlined),
+              label: const Text('清空本轮对话'),
             ),
           ),
         ],
@@ -708,10 +737,8 @@ class _JournalCard extends StatelessWidget {
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => _JournalDetailPage(
-              entry: entry,
-              timeText: _timeText,
-            ),
+            builder: (_) =>
+                _JournalDetailPage(entry: entry, timeText: _timeText),
           ),
         );
       },
@@ -794,10 +821,7 @@ class _EmotionTags extends StatelessWidget {
             ),
             child: Text(
               label,
-              style: const TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w700,
-              ),
+              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
             ),
           ),
       ],
@@ -806,10 +830,7 @@ class _EmotionTags extends StatelessWidget {
 }
 
 class _JournalDetailPage extends StatelessWidget {
-  const _JournalDetailPage({
-    required this.entry,
-    required this.timeText,
-  });
+  const _JournalDetailPage({required this.entry, required this.timeText});
 
   final PetMoodLog entry;
   final String timeText;
@@ -835,8 +856,10 @@ class _JournalDetailPage extends StatelessWidget {
                       icon: const Icon(Icons.arrow_back_rounded),
                     ),
                     const Spacer(),
-                    Text(timeText,
-                        style: Theme.of(context).textTheme.labelMedium),
+                    Text(
+                      timeText,
+                      style: Theme.of(context).textTheme.labelMedium,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 18),

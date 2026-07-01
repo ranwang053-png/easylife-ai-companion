@@ -71,13 +71,13 @@ class MockPetProfileService implements PetProfileService {
 class LocalPetProfileService implements PetProfileService {
   LocalPetProfileService(this._store);
 
-  static const _profileKey = 'easylife.v1.pet_profile';
+  static const profileKey = 'easylife.v1.pet_profile';
 
   final LocalStore _store;
 
   @override
   Future<PetProfile?> getPetProfile() async {
-    final raw = await _store.getString(_profileKey);
+    final raw = await _store.getString(profileKey);
     if (raw == null) return null;
     try {
       return PetProfile.fromJson(jsonDecode(raw) as Map<String, dynamic>);
@@ -93,7 +93,7 @@ class LocalPetProfileService implements PetProfileService {
 
   @override
   Future<void> savePetProfile(PetProfile profile) =>
-      _store.setString(_profileKey, jsonEncode(profile.toJson()));
+      _store.setString(profileKey, jsonEncode(profile.toJson()));
 
   @override
   Future<void> updatePetProfile(PetProfile profile) => savePetProfile(profile);

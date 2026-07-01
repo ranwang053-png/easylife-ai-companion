@@ -1,6 +1,7 @@
 class UserProfile {
   const UserProfile({
     this.accountIdentifier = '',
+    this.avatarImageUrl = '',
     required this.nickname,
     required this.birthday,
     required this.gender,
@@ -27,6 +28,7 @@ class UserProfile {
   });
 
   final String accountIdentifier;
+  final String avatarImageUrl;
   final String nickname;
   final DateTime birthday;
   final String? gender;
@@ -54,6 +56,7 @@ class UserProfile {
   factory UserProfile.fromJson(Map<String, dynamic> json) {
     return UserProfile(
       accountIdentifier: json['accountIdentifier'] as String? ?? '',
+      avatarImageUrl: json['avatarImageUrl'] as String? ?? '',
       nickname: json['nickname'] as String? ?? '新朋友',
       birthday: DateTime.parse(json['birthday'] as String),
       gender: json['gender'] as String?,
@@ -67,8 +70,9 @@ class UserProfile {
       petReminderStyle: json['petReminderStyle'] as String? ?? '轻提醒',
       birthPlace: json['birthPlace'] as String? ?? '',
       currentResidence: json['currentResidence'] as String? ?? '',
-      personalTags:
-          List<String>.from(json['personalTags'] as List? ?? const []),
+      personalTags: List<String>.from(
+        json['personalTags'] as List? ?? const [],
+      ),
       memoryNotes: List<String>.from(json['memoryNotes'] as List? ?? const []),
       notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
       locationAccessEnabled: json['locationAccessEnabled'] as bool? ?? false,
@@ -85,6 +89,7 @@ class UserProfile {
 
   Map<String, dynamic> toJson() => {
         'accountIdentifier': accountIdentifier,
+        'avatarImageUrl': avatarImageUrl,
         'nickname': nickname,
         'birthday': birthday.toIso8601String(),
         'gender': gender,
@@ -112,6 +117,7 @@ class UserProfile {
 
   UserProfile copyWith({
     String? accountIdentifier,
+    String? avatarImageUrl,
     String? nickname,
     DateTime? birthday,
     String? gender,
@@ -139,6 +145,7 @@ class UserProfile {
   }) {
     return UserProfile(
       accountIdentifier: accountIdentifier ?? this.accountIdentifier,
+      avatarImageUrl: avatarImageUrl ?? this.avatarImageUrl,
       nickname: nickname ?? this.nickname,
       birthday: birthday ?? this.birthday,
       gender: clearGender ? null : gender ?? this.gender,

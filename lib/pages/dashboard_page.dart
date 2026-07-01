@@ -6,7 +6,7 @@ import '../services/agent_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/fortune_icon_resolver.dart';
-import '../widgets/companion_pet.dart';
+import '../widgets/companion_avatar.dart';
 import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 
@@ -35,6 +35,7 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   final _messageController = TextEditingController();
   String? _petReply;
+  var _isSending = false;
 
   @override
   void dispose() {
@@ -44,12 +45,21 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
-    if (message.isEmpty) return;
+    if (message.isEmpty || _isSending) return;
+    setState(() => _isSending = true);
     _messageController.clear();
     FocusScope.of(context).unfocus();
     final profile = await widget.userProfileService.loadProfile();
-    final insight = await widget.agentService.analyzeEmotion(message, profile);
-    if (mounted) setState(() => _petReply = insight.petReply);
+    final insight = await widget.agentService.analyzeEmotion(
+      message,
+      profile,
+      companion: widget.petProfile,
+    );
+    if (!mounted) return;
+    setState(() {
+      _petReply = insight.petReply;
+      _isSending = false;
+    });
   }
 
   @override
@@ -64,6 +74,7 @@ class _DashboardPageState extends State<DashboardPage> {
             profile: widget.petProfile,
             quote: _petReply ?? DashboardMock.fortune.emotionalClosing,
             controller: _messageController,
+            isSending: _isSending,
             onSend: _sendMessage,
             onOpenPetProfile: widget.onOpenPetProfile,
             onOpenCompanion: () => widget.onOpenModule('桌宠陪伴'),
@@ -159,6 +170,7 @@ class _PetCompanionCard extends StatelessWidget {
     required this.profile,
     required this.quote,
     required this.controller,
+    required this.isSending,
     required this.onSend,
     required this.onOpenPetProfile,
     required this.onOpenCompanion,
@@ -167,6 +179,7 @@ class _PetCompanionCard extends StatelessWidget {
   final PetProfile? profile;
   final String quote;
   final TextEditingController controller;
+  final bool isSending;
   final VoidCallback onSend;
   final VoidCallback onOpenPetProfile;
   final VoidCallback onOpenCompanion;
@@ -196,8 +209,9 @@ class _PetCompanionCard extends StatelessWidget {
                         ),
                         decoration: BoxDecoration(
                           color: AppColors.surface.withValues(alpha: .86),
-                          borderRadius:
-                              const BorderRadius.all(Radius.circular(99)),
+                          borderRadius: const BorderRadius.all(
+                            Radius.circular(99),
+                          ),
                         ),
                         child: const Text(
                           '今天也在这里',
@@ -218,11 +232,10 @@ class _PetCompanionCard extends StatelessWidget {
                         constraints: const BoxConstraints(maxWidth: 380),
                         child: Text(
                           quote,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: AppColors.ink,
-                                    height: 1.5,
-                                  ),
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodyMedium
+                              ?.copyWith(color: AppColors.ink, height: 1.5),
                         ),
                       ),
                     ],
@@ -235,8 +248,10 @@ class _PetCompanionCard extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    CompanionPet(
+                    CompanionAvatar(
+                      profile: profile,
                       size: ResponsivePage.isMedium(context) ? 150 : 124,
+                      imageKey: const Key('dashboard-companion-avatar-image'),
                     ),
                     const SizedBox(height: 6),
                     SizedBox(
@@ -248,8 +263,9 @@ class _PetCompanionCard extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           minimumSize: const Size.fromHeight(38),
                           padding: const EdgeInsets.symmetric(horizontal: 8),
-                          backgroundColor:
-                              AppColors.surface.withValues(alpha: .75),
+                          backgroundColor: AppColors.surface.withValues(
+                            alpha: .75,
+                          ),
                         ),
                         child: Text(
                           profile == null ? '创建伙伴档案' : '进入陪伴',
@@ -265,15 +281,21 @@ class _PetCompanionCard extends StatelessWidget {
           const SizedBox(height: 14),
           TextField(
             controller: controller,
+            enabled: !isSending,
             textInputAction: TextInputAction.send,
-            onSubmitted: (_) => onSend(),
+            onSubmitted: isSending ? null : (_) => onSend(),
             decoration: InputDecoration(
               hintText: '和我说说今天的心情吧...',
               fillColor: AppColors.surface.withValues(alpha: .92),
               suffixIcon: IconButton(
                 tooltip: '发送',
-                onPressed: onSend,
-                icon: const Icon(Icons.send_rounded),
+                onPressed: isSending ? null : onSend,
+                icon: isSending
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.send_rounded),
               ),
             ),
           ),
@@ -383,11 +405,7 @@ class _DailyFortuneCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              Container(
-                width: 1,
-                height: 116,
-                color: AppColors.outline,
-              ),
+              Container(width: 1, height: 116, color: AppColors.outline),
               const SizedBox(width: 14),
               Expanded(
                 flex: 4,
@@ -458,10 +476,7 @@ class _OverallFortuneEntry extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                '整体运势',
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
+              Text('整体运势', style: Theme.of(context).textTheme.labelMedium),
               const SizedBox(width: 3),
               const Icon(
                 Icons.chevron_right_rounded,
@@ -537,10 +552,7 @@ class _OverallFortunePage extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 20),
-                Text(
-                  '整体解读',
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
+                Text('整体解读', style: Theme.of(context).textTheme.headlineMedium),
                 const SizedBox(height: 12),
                 Text(
                   explanation,
@@ -868,10 +880,7 @@ class _InfoBubbleState extends State<_InfoBubble> {
 }
 
 class _FortuneAssetIcon extends StatelessWidget {
-  const _FortuneAssetIcon({
-    required this.iconPath,
-    required this.fallback,
-  });
+  const _FortuneAssetIcon({required this.iconPath, required this.fallback});
 
   final String? iconPath;
   final Widget fallback;
@@ -911,11 +920,7 @@ class _FortuneIconFallback extends StatelessWidget {
         color: AppColors.primaryMist,
         shape: BoxShape.circle,
       ),
-      child: Icon(
-        icon,
-        size: 15,
-        color: AppColors.primaryDark,
-      ),
+      child: Icon(icon, size: 15, color: AppColors.primaryDark),
     );
   }
 }

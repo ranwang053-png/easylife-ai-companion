@@ -1,8 +1,16 @@
+import 'dart:async';
+
 import 'package:company_app/main.dart';
 import 'package:company_app/models/app_models.dart';
 import 'package:company_app/pages/app_shell.dart';
+import 'package:company_app/pages/companion_page.dart';
+import 'package:company_app/pages/dashboard_page.dart';
+import 'package:company_app/pages/diet_capture_page.dart';
+import 'package:company_app/pages/diet_recognition_confirm_page.dart';
+import 'package:company_app/pages/food_sticker_editor_page.dart';
 import 'package:company_app/pages/health_page.dart';
 import 'package:company_app/pages/memory_management_page.dart';
+import 'package:company_app/pages/pet_avatar_preview_page.dart';
 import 'package:company_app/pages/pet_profile_form_page.dart';
 import 'package:company_app/pages/settings_page.dart';
 import 'package:company_app/services/agent_service.dart';
@@ -17,6 +25,25 @@ import 'package:company_app/widgets/soft_card.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _ControlledFoodAgentService extends MockAgentService {
+  final Completer<FoodCalorieEstimate> foodEstimate =
+      Completer<FoodCalorieEstimate>();
+  var estimateCalls = 0;
+
+  @override
+  Future<FoodCalorieEstimate> estimateFoodCalories({
+    required String description,
+    String? imagePath,
+    String? ingredientsText,
+    required String portionText,
+    required String mealType,
+    required UserProfile profile,
+  }) {
+    estimateCalls += 1;
+    return foodEstimate.future;
+  }
+}
 
 Future<void> authenticateNewUser(WidgetTester tester) async {
   await tester.enterText(find.byKey(const Key('phone-field')), '13812345678');
@@ -46,8 +73,130 @@ Future<void> pumpToDashboard(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('core flow stays stable at an iPhone-sized viewport',
-      (tester) async {
+  testWidgets('pet avatar preview shows the generated image without cropping', (
+    tester,
+  ) async {
+    const generatedImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PetAvatarPreviewPage(
+          imagePath: generatedImage,
+          generatedAvatarUrl: generatedImage,
+          agentService: const MockAgentService(),
+          petProfileService: const MockPetProfileService(),
+          onCompleted: (_) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final image = tester.widget<Image>(find.byType(Image));
+    expect(image.fit, BoxFit.contain);
+  });
+
+  testWidgets('dashboard uses the generated companion avatar when available', (
+    tester,
+  ) async {
+    const generatedImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DashboardPage(
+          petProfile: PetProfile(
+            id: 'generated-avatar-pet',
+            name: '小云',
+            birthday: DateTime(2026, 7, 1),
+            gender: null,
+            personalityTags: const ['温柔'],
+            relationshipNote: '陪伴伙伴',
+            originalPhotoUrl: null,
+            generatedAvatarUrl: generatedImage,
+            createdAt: DateTime(2026, 7, 1),
+          ),
+          agentService: const MockAgentService(),
+          userProfileService: const MockUserProfileService(),
+          onOpenModule: (_) {},
+          onOpenSettings: () {},
+          onOpenPetProfile: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final image = tester.widget<Image>(
+      find.byKey(const Key('dashboard-companion-avatar-image')),
+    );
+    expect(image.fit, BoxFit.contain);
+    expect(find.text('小云'), findsOneWidget);
+  });
+
+  testWidgets('companion page uses the generated companion avatar', (
+    tester,
+  ) async {
+    const generatedImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanionPage(
+          agentService: const MockAgentService(),
+          userProfileService: const MockUserProfileService(),
+          journalRepository: LocalJournalRepository(MemoryLocalStore()),
+          petProfile: PetProfile(
+            id: 'companion-avatar-pet',
+            name: '小云',
+            birthday: DateTime(2026, 7, 1),
+            gender: null,
+            personalityTags: const ['温柔'],
+            relationshipNote: '陪伴伙伴',
+            originalPhotoUrl: null,
+            generatedAvatarUrl: generatedImage,
+            createdAt: DateTime(2026, 7, 1),
+          ),
+          onCreatePetProfile: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final image = tester.widget<Image>(
+      find.byKey(const Key('companion-page-avatar-image')),
+    );
+    expect(image.fit, BoxFit.contain);
+    expect(find.text('小云'), findsOneWidget);
+  });
+
+  testWidgets('pet profile form uses the generated companion avatar', (
+    tester,
+  ) async {
+    const generatedImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PetProfileFormPage(
+          agentService: const MockAgentService(),
+          petProfileService: const MockPetProfileService(),
+          generatedAvatarUrl: generatedImage,
+          onCompleted: (_) {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final image = tester.widget<Image>(
+      find.byKey(const Key('pet-profile-form-avatar-image')),
+    );
+    expect(image.fit, BoxFit.contain);
+    expect(find.text('更换伙伴形象'), findsOneWidget);
+  });
+
+  testWidgets('core flow stays stable at an iPhone-sized viewport', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -63,8 +212,9 @@ void main() {
     }
   });
 
-  testWidgets('core flow stays stable at an iPad-sized viewport',
-      (tester) async {
+  testWidgets('core flow stays stable at an iPad-sized viewport', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(820, 1180);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -79,8 +229,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop layout uses side navigation without overflow',
-      (tester) async {
+  testWidgets('desktop layout uses side navigation without overflow', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -113,8 +264,9 @@ void main() {
     expect(find.text('完成'), findsOneWidget);
   });
 
-  testWidgets('region picker uses one text size for province city and area',
-      (tester) async {
+  testWidgets('region picker uses one text size for province city and area', (
+    tester,
+  ) async {
     MockPetProfileService.resetMockProfile();
     await tester.pumpWidget(const CompanyApp());
     await tester.pumpAndSettle();
@@ -174,8 +326,9 @@ void main() {
     expect(find.text('塔罗'), findsNothing);
   });
 
-  testWidgets('saving basic info enters dashboard without pet onboarding',
-      (tester) async {
+  testWidgets('saving basic info enters dashboard without pet onboarding', (
+    tester,
+  ) async {
     MockPetProfileService.resetMockProfile();
     await tester.pumpWidget(const CompanyApp());
     await tester.pumpAndSettle();
@@ -195,8 +348,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('basic info provides occupation, MBTI and tag selectors',
-      (tester) async {
+  testWidgets('basic info provides occupation, MBTI and tag selectors', (
+    tester,
+  ) async {
     MockPetProfileService.resetMockProfile();
     await tester.pumpWidget(const CompanyApp());
     await tester.pumpAndSettle();
@@ -319,10 +473,7 @@ void main() {
       250,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.enterText(
-      petInput,
-      '今天有点累',
-    );
+    await tester.enterText(petInput, '今天有点累');
     await tester.ensureVisible(find.byTooltip('发送'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('发送'));
@@ -331,11 +482,13 @@ void main() {
     expect(find.textContaining('我听见你已经撑着走了很久'), findsOneWidget);
   });
 
-  testWidgets('companion profile supports flexible identity and analysis',
-      (tester) async {
+  testWidgets('companion profile supports flexible identity and analysis', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: PetProfileFormPage(
+          agentService: const MockAgentService(),
           petProfileService: const MockPetProfileService(),
           onCompleted: (_) {},
         ),
@@ -447,6 +600,7 @@ void main() {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => PetProfileFormPage(
+                  agentService: const MockAgentService(),
                   petProfileService: petProfileService,
                   initialProfile: initialProfile,
                   onCompleted: (profile) => completedProfile = profile,
@@ -479,35 +633,38 @@ void main() {
     expect((await petProfileService.getPetProfile())?.name, '新伙伴');
   });
 
-  testWidgets('legacy pet gender opens in companion profile without assertion',
-      (tester) async {
-    final legacyProfile = PetProfile(
-      id: 'legacy',
-      name: '糯米',
-      birthday: DateTime(2022, 6, 1),
-      gender: '弟弟',
-      personalityTags: const ['粘人'],
-      relationshipNote: '我的猫',
-      originalPhotoUrl: null,
-      generatedAvatarUrl: null,
-      createdAt: DateTime(2026, 6, 1),
-    );
+  testWidgets(
+    'legacy pet gender opens in companion profile without assertion',
+    (tester) async {
+      final legacyProfile = PetProfile(
+        id: 'legacy',
+        name: '糯米',
+        birthday: DateTime(2022, 6, 1),
+        gender: '弟弟',
+        personalityTags: const ['粘人'],
+        relationshipNote: '我的猫',
+        originalPhotoUrl: null,
+        generatedAvatarUrl: null,
+        createdAt: DateTime(2026, 6, 1),
+      );
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: PetProfileFormPage(
-          petProfileService: const MockPetProfileService(),
-          initialProfile: legacyProfile,
-          onCompleted: (_) {},
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PetProfileFormPage(
+            agentService: const MockAgentService(),
+            petProfileService: const MockPetProfileService(),
+            initialProfile: legacyProfile,
+            onCompleted: (_) {},
+          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('编辑伙伴档案'), findsOneWidget);
-    expect(find.text('男'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-  });
+      expect(find.text('编辑伙伴档案'), findsOneWidget);
+      expect(find.text('男'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('quick weight action opens the real health recording flow', (
     tester,
@@ -532,6 +689,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('长期记忆'), findsOneWidget);
+    expect(find.byKey(const Key('my-page-user-avatar')), findsOneWidget);
+    expect(
+        find.byKey(const Key('my-page-companion-avatar-image')), findsNothing);
     expect(find.text('伙伴档案'), findsOneWidget);
     expect(find.text('饮食偏好'), findsOneWidget);
     expect(find.text('系统偏好'), findsOneWidget);
@@ -539,8 +699,9 @@ void main() {
     expect(find.text('内容创作偏好'), findsNothing);
   });
 
-  testWidgets('quick mood action opens the real companion flow',
-      (tester) async {
+  testWidgets('quick mood action opens the real companion flow', (
+    tester,
+  ) async {
     await pumpToDashboard(tester);
 
     await tester.tap(find.byType(FloatingActionButton));
@@ -573,6 +734,7 @@ void main() {
     expect(find.text('压力'), findsNothing);
     expect(find.textContaining('我听见你已经撑着走了很久'), findsWidgets);
     expect(find.text('保存情绪日记'), findsOneWidget);
+    expect(find.text('清空本轮对话'), findsOneWidget);
     expect(find.text('保存并查看'), findsNothing);
 
     await tester.ensureVisible(find.text('保存情绪日记'));
@@ -612,6 +774,43 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('companion conversation can be cleared without saving a journal',
+      (
+    tester,
+  ) async {
+    await pumpToDashboard(tester);
+
+    await tester.tap(find.text('陪伴').last);
+    await tester.pumpAndSettle();
+
+    final input = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.hintText == '例如：今天事情很多，我有点累，也担心做得不够好…',
+    );
+    await tester.enterText(input, '这轮我不想保存');
+    await tester.ensureVisible(find.text('发送'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('发送'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('本轮对话'), findsOneWidget);
+    expect(find.text('这轮我不想保存'), findsOneWidget);
+    expect(find.text('保存情绪日记'), findsOneWidget);
+    expect(find.text('清空本轮对话'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('清空本轮对话'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('清空本轮对话'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('本轮对话'), findsNothing);
+    expect(find.text('这轮我不想保存'), findsNothing);
+    expect(find.text('保存情绪日记'), findsNothing);
+    expect(find.text('清空本轮对话'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('weight dialog closes without lifecycle errors', (tester) async {
     await pumpToDashboard(tester);
 
@@ -636,8 +835,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('recording weight on a new day preserves prior history',
-      (tester) async {
+  testWidgets('recording weight on a new day preserves prior history', (
+    tester,
+  ) async {
     final store = MemoryLocalStore();
     final repository = LocalJournalRepository(store);
     final twoDaysAgo = DateTime.now().subtract(const Duration(days: 2));
@@ -672,8 +872,9 @@ void main() {
     expect(weights.last.weight, 52.1);
   });
 
-  testWidgets('diet guide is marked seen only after capture starts',
-      (tester) async {
+  testWidgets('diet guide is marked seen only after capture starts', (
+    tester,
+  ) async {
     final store = MemoryLocalStore();
     final repository = LocalJournalRepository(store);
     final twoDaysAgo = DateTime.now().subtract(const Duration(days: 2));
@@ -711,8 +912,330 @@ void main() {
     expect(await repository.hasSeenDietGuide(), isTrue);
   });
 
-  testWidgets('diet timeline shows daily weekly and monthly summaries',
-      (tester) async {
+  testWidgets('diet analysis locks mutable inputs until the result returns', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final agentService = _ControlledFoodAgentService();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DietCapturePage(
+          agentService: agentService,
+          userProfileService: const MockUserProfileService(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField).first, '稳定性测试餐');
+    await tester.scrollUntilVisible(
+      find.text('AI 估算热量'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.text('AI 估算热量'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('AI 估算热量'));
+    await tester.pump();
+
+    final fields = tester.widgetList<TextField>(find.byType(TextField));
+    expect(fields.every((field) => field.enabled == false), isTrue);
+    expect(
+        tester
+            .widget<OutlinedButton>(find.widgetWithText(
+              OutlinedButton,
+              '拍照',
+            ))
+            .onPressed,
+        isNull);
+    expect(
+        tester
+            .widget<OutlinedButton>(find.widgetWithText(
+              OutlinedButton,
+              '相册',
+            ))
+            .onPressed,
+        isNull);
+    expect(
+      tester
+          .widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '午餐'))
+          .onSelected,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(
+            FilledButton,
+            '正在识别与换算...',
+          ))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.pump(const Duration(milliseconds: 150));
+    agentService.foodEstimate.complete(
+      const FoodCalorieEstimate(
+        foodName: '稳定性测试餐',
+        baseCalories: 360,
+        estimatedCalories: 360,
+        portionText: '一整份',
+        mealType: '早餐',
+        confidence: .88,
+        nutritionNote: '测试',
+        suggestion: '测试',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(agentService.estimateCalls, 1);
+    expect(find.text('确认识别结果'), findsOneWidget);
+    expect(find.text('早餐'), findsOneWidget);
+  });
+
+  testWidgets('recalculation disables confirmation and editable fields', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final agentService = _ControlledFoodAgentService();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DietRecognitionConfirmPage(
+          estimate: const FoodCalorieEstimate(
+            foodName: '稳定性测试餐',
+            baseCalories: 360,
+            estimatedCalories: 360,
+            portionText: '一整份',
+            mealType: '早餐',
+            confidence: .88,
+            nutritionNote: '测试',
+            suggestion: '测试',
+          ),
+          description: '稳定性测试餐',
+          imagePath: null,
+          ingredientsText: '',
+          mealType: MealType.breakfast,
+          sourceType: 'text',
+          agentService: agentService,
+          userProfileService: const MockUserProfileService(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(
+      find.text('重新计算热量'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.text('重新计算热量'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('重新计算热量'));
+    await tester.pump();
+
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(
+            FilledButton,
+            '确认，制作贴纸',
+          ))
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).enabled,
+      isFalse,
+    );
+    expect(
+      tester
+          .widget<DropdownButtonFormField<String>>(
+            find.byType(DropdownButtonFormField<String>),
+          )
+          .onChanged,
+      isNull,
+    );
+
+    await tester.pump(const Duration(milliseconds: 150));
+    agentService.foodEstimate.complete(
+      const FoodCalorieEstimate(
+        foodName: '重新计算后的餐食',
+        baseCalories: 420,
+        estimatedCalories: 420,
+        portionText: '一整份',
+        mealType: '早餐',
+        confidence: .9,
+        nutritionNote: '测试',
+        suggestion: '测试',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('约 420 kcal'), findsOneWidget);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(
+            FilledButton,
+            '确认，制作贴纸',
+          ))
+          .onPressed,
+      isNotNull,
+    );
+  });
+
+  testWidgets('leaving diet analysis before completion has no setState error', (
+    tester,
+  ) async {
+    final agentService = _ControlledFoodAgentService();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => DietCapturePage(
+                  agentService: agentService,
+                  userProfileService: const MockUserProfileService(),
+                ),
+              ),
+            ),
+            child: const Text('打开饮食记录'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开饮食记录'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).first, '异步退出测试餐');
+    await tester.scrollUntilVisible(
+      find.text('AI 估算热量'),
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(find.text('AI 估算热量'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('AI 估算热量'));
+    await tester.pump(const Duration(milliseconds: 150));
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    agentService.foodEstimate.complete(
+      const FoodCalorieEstimate(
+        foodName: '异步退出测试餐',
+        baseCalories: 360,
+        estimatedCalories: 360,
+        portionText: '一整份',
+        mealType: '早餐',
+        confidence: .88,
+        nutritionNote: '测试',
+        suggestion: '测试',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('打开饮食记录'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('food sticker rapid taps return only one saved record', (
+    tester,
+  ) async {
+    var savedCount = 0;
+    final record = MealRecord(
+      id: 'rapid-save-meal',
+      date: DateTime(2026, 6, 26),
+      mealType: MealType.lunch,
+      foodName: '快速点击测试餐',
+      description: '',
+      estimatedCalories: 360,
+      imageUrl: null,
+      portionText: '一整份',
+      ingredientsText: '',
+      note: '',
+      recordTime: DateTime(2026, 6, 26, 12),
+      stickerStyle: '白色描边',
+      sourceType: 'text',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              final result = await Navigator.of(context).push<MealRecord>(
+                MaterialPageRoute(
+                  builder: (_) => FoodStickerEditorPage(record: record),
+                ),
+              );
+              if (result != null) savedCount += 1;
+            },
+            child: const Text('打开贴纸'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开贴纸'));
+    await tester.pumpAndSettle();
+
+    final saveButton = find.text('贴到今日手帐');
+    await tester.tap(saveButton);
+    await tester.tap(saveButton, warnIfMissed: false);
+    await tester.pumpAndSettle();
+
+    expect(savedCount, 1);
+    expect(find.text('打开贴纸'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('empty memory state closes safely at phone width', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final store = MemoryLocalStore();
+    final profile = MockUserProfileService.currentProfile.copyWith(
+      memoryNotes: const [],
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(
+                builder: (_) => MemoryManagementPage(
+                  initialProfile: profile,
+                  agentService: const MockAgentService(),
+                  userProfileService: LocalUserProfileService(store),
+                ),
+              ),
+            ),
+            child: const Text('打开空记忆'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('打开空记忆'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('还没有长期记忆'), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.arrow_back_rounded));
+    await tester.pumpAndSettle();
+
+    expect(find.text('打开空记忆'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('diet timeline shows daily weekly and monthly summaries', (
+    tester,
+  ) async {
     await pumpToDashboard(tester);
 
     await tester.tap(find.text('饮食'));
@@ -750,8 +1273,9 @@ void main() {
     expect(find.text('下一月饮食建议'), findsOneWidget);
   });
 
-  testWidgets('app shell reloads pet profile after settings closes',
-      (tester) async {
+  testWidgets('app shell reloads pet profile after settings closes', (
+    tester,
+  ) async {
     final store = MemoryLocalStore();
     final petProfileService = LocalPetProfileService(store);
 
@@ -794,8 +1318,9 @@ void main() {
     expect(find.text('创建伙伴档案'), findsNothing);
   });
 
-  testWidgets('settings page edits local permission preferences',
-      (tester) async {
+  testWidgets('settings page edits local permission preferences', (
+    tester,
+  ) async {
     final store = MemoryLocalStore();
     final userProfileService = LocalUserProfileService(store);
     await userProfileService.saveProfile(
@@ -868,8 +1393,9 @@ void main() {
     expect(restored.cloudSyncEnabled, isTrue);
   });
 
-  testWidgets('zodiac selector scrolls without overflowing on phone',
-      (tester) async {
+  testWidgets('zodiac selector scrolls without overflowing on phone', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(390, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -915,8 +1441,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('long-term memories can be added, edited and deleted',
-      (tester) async {
+  testWidgets('long-term memories can be added, edited and deleted', (
+    tester,
+  ) async {
     final store = MemoryLocalStore();
     final userProfileService = LocalUserProfileService(store);
     final initialProfile = MockUserProfileService.currentProfile.copyWith(
@@ -945,10 +1472,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('饮食建议希望简单易执行'), findsOneWidget);
-    expect(
-      (await userProfileService.loadProfile()).memoryNotes,
-      ['压力大时希望先被倾听', '饮食建议希望简单易执行'],
-    );
+    expect((await userProfileService.loadProfile()).memoryNotes, [
+      '压力大时希望先被倾听',
+      '饮食建议希望简单易执行',
+    ]);
 
     final addedMemory = find.byKey(const ValueKey('memory-item-1'));
     await tester.tap(
@@ -982,14 +1509,14 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('饮食建议希望温和且容易执行'), findsNothing);
-    expect(
-      (await userProfileService.loadProfile()).memoryNotes,
-      ['压力大时希望先被倾听'],
-    );
+    expect((await userProfileService.loadProfile()).memoryNotes, [
+      '压力大时希望先被倾听',
+    ]);
   });
 
-  testWidgets('long-term memory cards hide original journal text',
-      (tester) async {
+  testWidgets('long-term memory cards hide original journal text', (
+    tester,
+  ) async {
     final store = MemoryLocalStore();
     final userProfileService = LocalUserProfileService(store);
     const rawMemory = '低落、委屈、需要被理解：今天睡了好久，有点焦虑，听我讲经过';
@@ -1011,14 +1538,14 @@ void main() {
 
     expect(find.text('低落、委屈、需要被理解'), findsOneWidget);
     expect(find.textContaining('今天睡了好久'), findsNothing);
-    expect(
-      (await userProfileService.loadProfile()).memoryNotes,
-      const [rawMemory],
-    );
+    expect((await userProfileService.loadProfile()).memoryNotes, const [
+      rawMemory,
+    ]);
   });
 
-  testWidgets('diet record can become a sticker in today journal',
-      (tester) async {
+  testWidgets('diet record can become a sticker in today journal', (
+    tester,
+  ) async {
     await pumpToDashboard(tester);
 
     await tester.tap(find.text('饮食'));
@@ -1037,10 +1564,7 @@ void main() {
 
     await tester.tap(find.text('跳过'));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byType(TextField).first,
-      '吃了半袋薯片',
-    );
+    await tester.enterText(find.byType(TextField).first, '吃了半袋薯片');
     await tester.scrollUntilVisible(
       find.text('AI 估算热量'),
       250,
@@ -1069,12 +1593,15 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('settings editor can close and route can pop safely',
-      (tester) async {
+  testWidgets('settings editor can close and route can pop safely', (
+    tester,
+  ) async {
     await pumpToDashboard(tester);
 
     await tester.tap(find.byTooltip('设置'));
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('settings-user-avatar')), findsOneWidget);
+    expect(find.text('更换头像'), findsOneWidget);
     await tester.tap(find.text('昵称'));
     await tester.pumpAndSettle();
 

@@ -33,6 +33,10 @@ export interface EmotionAnalyzeResponse {
   petStatus: string;
 }
 
+export interface PetAvatarGenerateResponse {
+  generatedAvatarUrl: string;
+}
+
 declare global {
   namespace Express {
     interface Request {

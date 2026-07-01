@@ -27,9 +27,9 @@ class PageHeader extends StatelessWidget {
               const SizedBox(height: 7),
               Text(
                 subtitle,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: AppColors.secondaryInk,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppColors.secondaryInk),
               ),
             ],
           ),
@@ -55,9 +55,9 @@ class SectionTitle extends StatelessWidget {
         Expanded(
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  letterSpacing: -.15,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(letterSpacing: -.15),
           ),
         ),
         if (action case final value?)

@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../models/pet_profile.dart';
 import '../services/agent_service.dart';
 import '../services/pet_profile_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/pet_image_picker.dart';
 import '../widgets/ai_privacy_dialog.dart';
 import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
@@ -28,9 +31,22 @@ class PetPhotoUploadPage extends StatefulWidget {
 
 class _PetPhotoUploadPageState extends State<PetPhotoUploadPage> {
   String? _imagePath;
+  Uint8List? _previewBytes;
 
-  void _selectMockPhoto(String source) {
-    setState(() => _imagePath = 'mock://pet-photo/$source');
+  Future<void> _selectPhoto({required bool preferCamera}) async {
+    try {
+      final image = await pickPetImage(preferCamera: preferCamera);
+      if (!mounted || image == null) return;
+      setState(() {
+        _previewBytes = image.bytes;
+        _imagePath = image.dataUrl;
+      });
+    } on PetImagePickerException catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error.message)),
+      );
+    }
   }
 
   Future<void> _continue() async {
@@ -47,13 +63,15 @@ class _PetPhotoUploadPageState extends State<PetPhotoUploadPage> {
             onCompleted: widget.onCompleted,
           )
         : PetProfileFormPage(
+            agentService: widget.agentService,
             petProfileService: widget.petProfileService,
             originalPhotoUrl: imagePath,
             generatedAvatarUrl: null,
             onCompleted: widget.onCompleted,
           );
-    await Navigator.of(context)
-        .push(MaterialPageRoute<void>(builder: (_) => page));
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => page));
   }
 
   @override
@@ -79,7 +97,7 @@ class _PetPhotoUploadPageState extends State<PetPhotoUploadPage> {
             child: SizedBox(
               height: 260,
               child: Center(
-                child: _imagePath == null
+                child: _previewBytes == null
                     ? const Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -94,15 +112,13 @@ class _PetPhotoUploadPageState extends State<PetPhotoUploadPage> {
                           Container(
                             width: 150,
                             height: 150,
+                            clipBehavior: Clip.antiAlias,
                             decoration: BoxDecoration(
                               color: AppColors.softGreen,
                               borderRadius: BorderRadius.circular(30),
                             ),
-                            child: const Icon(
-                              Icons.pets_rounded,
-                              size: 78,
-                              color: AppColors.primaryDark,
-                            ),
+                            child: Image.memory(_previewBytes!,
+                                fit: BoxFit.contain),
                           ),
                           const SizedBox(height: 12),
                           const Text('伙伴照片已选择'),
@@ -116,7 +132,7 @@ class _PetPhotoUploadPageState extends State<PetPhotoUploadPage> {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => _selectMockPhoto('camera'),
+                  onPressed: () => _selectPhoto(preferCamera: true),
                   icon: const Icon(Icons.camera_alt_outlined),
                   label: const Text('拍照'),
                 ),
@@ -124,7 +140,7 @@ class _PetPhotoUploadPageState extends State<PetPhotoUploadPage> {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: () => _selectMockPhoto('gallery'),
+                  onPressed: () => _selectPhoto(preferCamera: false),
                   icon: const Icon(Icons.photo_library_outlined),
                   label: const Text('从相册选择'),
                 ),

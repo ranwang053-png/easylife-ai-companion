@@ -5,6 +5,7 @@ export interface AppConfig {
   logLevel: "silent" | "info";
   enableTestTriggers: boolean;
   fixedAccessTokens: readonly string[];
+  ai?: AiConfig;
   auth?: {
     databaseUrl: string;
     smsProviderUrl: URL;
@@ -30,6 +31,46 @@ export interface AppConfig {
     accountDeletionMaxBackoffSeconds: number;
     authMaintenanceIntervalSeconds: number;
   };
+}
+
+export type AiMode = "fixed" | "gateway";
+
+export type AiProviderId =
+  | "fixed"
+  | "openai"
+  | "anthropic"
+  | "deepseek"
+  | "doubao"
+  | "birefnet";
+
+export type AiCapability =
+  | "emotion"
+  | "memory"
+  | "petProfile"
+  | "dailyFortune"
+  | "petAvatar"
+  | "dietText"
+  | "dietVision"
+  | "dietSearch"
+  | "foodSegmentation";
+
+export interface AiCapabilityConfig {
+  provider: AiProviderId;
+  model: string;
+  imageEnhancement?: "none" | "light";
+}
+
+export interface AiProviderConfig {
+  apiKey?: string;
+  baseUrl?: URL;
+}
+
+export interface AiConfig {
+  mode: AiMode;
+  capabilities: Readonly<Record<AiCapability, AiCapabilityConfig>>;
+  providers: Readonly<Record<AiProviderId, AiProviderConfig>>;
+  petAvatarProvider?: AiProviderConfig;
+  petAvatarStyleReferenceDir?: string;
 }
 
 export function loadConfig(
@@ -71,6 +112,7 @@ export function loadConfig(
       environment.FIXED_ROTATED_ACCESS_TOKEN ??
         "rotated-access-token-with-at-least-twenty-characters",
     ],
+    ai: loadAiConfig(environment),
   };
 
   if (databaseUrl === undefined) {
@@ -195,12 +237,187 @@ export function loadConfig(
   };
 }
 
+function loadAiConfig(environment: NodeJS.ProcessEnv): AiConfig {
+  const mode = aiMode(environment.AI_PROVIDER);
+  return {
+    mode,
+    capabilities: {
+      emotion: capability(environment, {
+        providerName: "AI_EMOTION_PROVIDER",
+        modelName: "AI_EMOTION_MODEL",
+        fallbackProvider: "anthropic",
+        fallbackModel: "claude-sonnet-4.6",
+      }),
+      memory: capability(environment, {
+        providerName: "AI_MEMORY_PROVIDER",
+        modelName: "AI_MEMORY_MODEL",
+        fallbackProvider: "anthropic",
+        fallbackModel: "claude-sonnet-4.6",
+      }),
+      petProfile: capability(environment, {
+        providerName: "AI_PET_PROFILE_PROVIDER",
+        modelName: "AI_PET_PROFILE_MODEL",
+        fallbackProvider: "anthropic",
+        fallbackModel: "claude-sonnet-4.6",
+      }),
+      dailyFortune: capability(environment, {
+        providerName: "AI_DAILY_FORTUNE_PROVIDER",
+        modelName: "AI_DAILY_FORTUNE_MODEL",
+        fallbackProvider: "openai",
+        fallbackModel: "gpt-5.5",
+      }),
+      petAvatar: capability(environment, {
+        providerName: "AI_PET_AVATAR_PROVIDER",
+        modelName: "AI_PET_AVATAR_MODEL",
+        fallbackProvider: "openai",
+        fallbackModel: "gpt-image-1",
+      }),
+      dietText: capability(environment, {
+        providerName: "AI_DIET_TEXT_PROVIDER",
+        modelName: "AI_DIET_TEXT_MODEL",
+        fallbackProvider: "doubao",
+        fallbackModel: "doubao-seed-1-6",
+      }),
+      dietVision: capability(environment, {
+        providerName: "AI_DIET_VISION_PROVIDER",
+        modelName: "AI_DIET_VISION_MODEL",
+        fallbackProvider: "doubao",
+        fallbackModel: "doubao-seed-1-6",
+      }),
+      dietSearch: capability(environment, {
+        providerName: "AI_DIET_SEARCH_PROVIDER",
+        modelName: "AI_DIET_SEARCH_MODEL",
+        fallbackProvider: "doubao",
+        fallbackModel: "doubao-seed-1-6",
+      }),
+      foodSegmentation: {
+        ...capability(environment, {
+          providerName: "AI_FOOD_SEGMENTATION_PROVIDER",
+          modelName: "AI_FOOD_SEGMENTATION_MODEL",
+          fallbackProvider: "birefnet",
+          fallbackModel: "BiRefNet",
+        }),
+        imageEnhancement:
+          environment.AI_FOOD_IMAGE_ENHANCEMENT === "light" ? "light" : "none",
+      },
+    },
+    providers: {
+      fixed: {},
+      openai: providerConfig(environment, "OPENAI"),
+      anthropic: providerConfig(environment, "ANTHROPIC"),
+      deepseek: providerConfig(environment, "DEEPSEEK"),
+      doubao: providerConfig(environment, "DOUBAO"),
+      birefnet: providerConfig(environment, "BIREFNET"),
+    },
+    petAvatarProvider: providerConfigWithFallback(
+      environment,
+      "AI_PET_AVATAR",
+      providerConfig(environment, "OPENAI"),
+    ),
+    ...(environment.AI_PET_AVATAR_STYLE_REFERENCE_DIR === undefined ||
+    environment.AI_PET_AVATAR_STYLE_REFERENCE_DIR.length === 0
+      ? {}
+      : {
+          petAvatarStyleReferenceDir:
+            environment.AI_PET_AVATAR_STYLE_REFERENCE_DIR,
+        }),
+  };
+}
+
+function aiMode(raw: string | undefined): AiMode {
+  if (raw === undefined || raw.length === 0 || raw === "fixed") return "fixed";
+  if (raw === "gateway") return "gateway";
+  throw new Error("AI_PROVIDER must be fixed or gateway");
+}
+
+function capability(
+  environment: NodeJS.ProcessEnv,
+  options: {
+    providerName: string;
+    modelName: string;
+    fallbackProvider: AiProviderId;
+    fallbackModel: string;
+  },
+): AiCapabilityConfig {
+  return {
+    provider: aiProvider(
+      environment[options.providerName],
+      options.providerName,
+      options.fallbackProvider,
+    ),
+    model: nonEmpty(environment[options.modelName], options.fallbackModel),
+  };
+}
+
+function aiProvider(
+  raw: string | undefined,
+  name: string,
+  fallback: AiProviderId,
+): AiProviderId {
+  const value = nonEmpty(raw, fallback);
+  if (
+    value === "fixed" ||
+    value === "openai" ||
+    value === "anthropic" ||
+    value === "deepseek" ||
+    value === "doubao" ||
+    value === "birefnet"
+  ) {
+    return value;
+  }
+  throw new Error(
+    `${name} must be one of fixed, openai, anthropic, deepseek, doubao, birefnet`,
+  );
+}
+
+function providerConfig(
+  environment: NodeJS.ProcessEnv,
+  prefix: string,
+): AiProviderConfig {
+  const apiKey = optionalSecret(environment[`${prefix}_API_KEY`]);
+  const baseUrl = optionalUrl(
+    environment[`${prefix}_BASE_URL`],
+    `${prefix}_BASE_URL`,
+  );
+  return {
+    ...(apiKey === undefined ? {} : { apiKey }),
+    ...(baseUrl === undefined ? {} : { baseUrl }),
+  };
+}
+
+function providerConfigWithFallback(
+  environment: NodeJS.ProcessEnv,
+  prefix: string,
+  fallback: AiProviderConfig,
+): AiProviderConfig {
+  const override = providerConfig(environment, prefix);
+  const apiKey = override.apiKey ?? fallback.apiKey;
+  const baseUrl = override.baseUrl ?? fallback.baseUrl;
+  return {
+    ...(apiKey === undefined ? {} : { apiKey }),
+    ...(baseUrl === undefined ? {} : { baseUrl }),
+  };
+}
+
 function required(environment: NodeJS.ProcessEnv, name: string): string {
   const value = environment[name];
   if (value === undefined || value.length === 0) {
     throw new Error(`${name} must be configured when DATABASE_URL is set`);
   }
   return value;
+}
+
+function optionalSecret(raw: string | undefined): string | undefined {
+  if (raw === undefined || raw.length === 0) return undefined;
+  return raw;
+}
+
+function nonEmpty<T extends string>(
+  raw: string | undefined,
+  fallback: T,
+): T | string {
+  if (raw === undefined || raw.length === 0) return fallback;
+  return raw;
 }
 
 function secret(environment: NodeJS.ProcessEnv, name: string): Buffer {

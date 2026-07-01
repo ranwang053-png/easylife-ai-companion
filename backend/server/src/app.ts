@@ -17,12 +17,19 @@ import {
   testErrorTrigger,
 } from "./http.js";
 import { FixedEmotionProvider } from "./providers/fixed-emotion-provider.js";
+import { FixedPetAvatarProvider } from "./providers/fixed-pet-avatar-provider.js";
 import type { EmotionProvider } from "./providers/emotion-provider.js";
-import type { EmotionAnalyzeResponse, JsonObject } from "./types.js";
+import type { PetAvatarProvider } from "./providers/pet-avatar-provider.js";
+import type {
+  EmotionAnalyzeResponse,
+  JsonObject,
+  PetAvatarGenerateResponse,
+} from "./types.js";
 
 interface AppDependencies {
   config: AppConfig;
   emotionProvider?: EmotionProvider;
+  petAvatarProvider?: PetAvatarProvider;
   authService?: AuthService;
 }
 
@@ -51,6 +58,8 @@ export function createApp(dependencies: AppDependencies) {
   const app = express();
   const emotionProvider =
     dependencies.emotionProvider ?? new FixedEmotionProvider();
+  const petAvatarProvider =
+    dependencies.petAvatarProvider ?? new FixedPetAvatarProvider();
   const { config } = dependencies;
   if (
     config.nodeEnv !== "development" &&
@@ -69,6 +78,50 @@ export function createApp(dependencies: AppDependencies) {
   }
   app.use(localCors);
   app.use(requestContext(config));
+
+  app.post(
+    "/v1/pet-avatar/generate",
+    express.json({ limit: "8mb" }),
+    requireBearerToken(authService),
+    testErrorTrigger(config, [
+      "VALIDATION_ERROR",
+      "PAYLOAD_TOO_LARGE",
+      "AI_PROVIDER_UNAVAILABLE",
+      "RATE_LIMITED",
+    ]),
+    validateBody("PetAvatarGenerateRequest"),
+    async (request, response) => {
+      try {
+        const result = await petAvatarProvider.generate(
+          request.body as JsonObject,
+        );
+        const validation = validateContractSchema(
+          "PetAvatarGenerateResponse",
+          result,
+        );
+
+        if (!validation.valid) {
+          sendError(response, request.requestId, "AI_OUTPUT_INVALID");
+          return;
+        }
+
+        response.json(result satisfies PetAvatarGenerateResponse);
+      } catch (error) {
+        if (config.logLevel !== "silent") {
+          console.error(
+            JSON.stringify({
+              event: "pet_avatar_provider_error",
+              requestId: request.requestId,
+              error:
+                error instanceof Error ? error.message : "unknown provider error",
+            }),
+          );
+        }
+        sendError(response, request.requestId, "AI_PROVIDER_UNAVAILABLE");
+      }
+    },
+  );
+
   app.use(express.json({ limit: "256kb" }));
 
   app.get("/v1/health", (_request, response) => {
