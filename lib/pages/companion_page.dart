@@ -93,20 +93,25 @@ class CompanionPageState extends State<CompanionPage> {
       _petStatus = '专注';
     });
     final profile = await widget.userProfileService.loadProfile();
-    final conversationText = _conversation
-        .where((turn) => turn.isUser)
-        .map((turn) => turn.text)
-        .join('\n');
-    final insight = await widget.agentService.analyzeEmotion(
-      conversationText,
+    final reply = await widget.agentService.generateCompanionReply(
+      _conversation.map((turn) => turn.toAgentTurn()).toList(growable: false),
       profile,
       companion: widget.petProfile,
     );
     if (!mounted) return;
+    final emotionLabel = reply.emotionLabel ?? '平静';
     setState(() {
-      _insight = insight;
-      _conversation.add(_ConversationTurn.companion(insight.petReply));
-      _petStatus = _companionStatusForEmotion(insight.label);
+      _insight = EmotionInsight(
+        label: emotionLabel,
+        labels: [emotionLabel],
+        intensity: 50,
+        possibleReason: '这份感受正在被慢慢看见。',
+        petSuggestion: '先继续把最在意的部分说出来，不急着马上解决。',
+        petReply: reply.reply,
+        petStatus: emotionLabel,
+      );
+      _conversation.add(_ConversationTurn.companion(reply.reply));
+      _petStatus = _companionStatusForEmotion(emotionLabel);
       _isAnalyzing = false;
     });
   }
@@ -122,12 +127,30 @@ class CompanionPageState extends State<CompanionPage> {
     final profile = await widget.userProfileService.loadProfile();
     if (!mounted) return;
     final conversationSummary = unsavedMessages.join('；');
-    final journalSummary = _buildJournalSummary(
-      messages: unsavedMessages,
-      insight: insight,
+    final journalSummary = await widget.agentService.summarizeEmotionJournal(
+      _conversation.map((turn) => turn.toAgentTurn()).toList(growable: false),
+      profile,
+      companion: widget.petProfile,
     );
-    final memory = '${insight.allLabels.join('、')}：$conversationSummary';
-    final memories = [...profile.memoryNotes, memory];
+    final memoryCandidates =
+        await widget.agentService.extractLongTermMemoryCandidates(
+      sourceType: 'emotion_journal',
+      sourceContent: {
+        'recap': journalSummary.recap,
+        'emotionTags': journalSummary.emotionTags,
+        'trigger': journalSummary.trigger,
+        'insight': journalSummary.insight,
+        'nextActions': journalSummary.nextActions,
+        'closingWords': journalSummary.closingWords,
+      },
+      existingMemories: profile.memoryNotes,
+    );
+    final newMemories = memoryCandidates
+        .map((candidate) => candidate.content)
+        .where((content) => content.trim().isNotEmpty)
+        .where((content) => !profile.memoryNotes.contains(content))
+        .toList(growable: false);
+    final memories = [...profile.memoryNotes, ...newMemories];
     final trimmedMemories = memories.length > 12
         ? memories.sublist(memories.length - 12)
         : memories;
@@ -139,15 +162,15 @@ class CompanionPageState extends State<CompanionPage> {
       emotionLabels: insight.allLabels,
       emotionScore: insight.intensity / 100,
       petReply: insight.petReply,
-      suggestion: insight.petSuggestion,
-      summary: journalSummary.summary,
-      warmSummary: journalSummary.warmSummary,
-      possibleReason: journalSummary.possibleReason,
-      emotionChange: journalSummary.emotionChange,
-      emotionValidation: journalSummary.emotionValidation,
-      actionSuggestion: journalSummary.actionSuggestion,
+      suggestion: journalSummary.nextActions.first,
+      summary: journalSummary.recap,
+      warmSummary: journalSummary.insight,
+      possibleReason: journalSummary.trigger,
+      emotionChange: '这段对话里主要浮现了“${journalSummary.emotionTags.join('、')}”。',
+      emotionValidation: '这些感受的出现是有原因的，不需要急着否定自己。',
+      actionSuggestion: journalSummary.nextActions.join('；'),
       nextActions: journalSummary.nextActions,
-      closingMessage: journalSummary.closingMessage,
+      closingMessage: journalSummary.closingWords,
     );
     setState(() {
       _history.insert(0, entry);
@@ -189,29 +212,6 @@ class CompanionPageState extends State<CompanionPage> {
     });
     _controller.clear();
     _inputFocusNode.requestFocus();
-  }
-
-  _JournalSummaryDraft _buildJournalSummary({
-    required List<String> messages,
-    required EmotionInsight insight,
-  }) {
-    final first = messages.first;
-    final last = messages.last;
-    final labels = insight.allLabels.take(3).join('、');
-    final summary =
-        messages.length == 1 ? first : '这轮对话里，你从“$first”慢慢说到了“$last”。';
-    return _JournalSummaryDraft(
-      summary: summary,
-      warmSummary: '你今天的感受被好好听见了，不需要急着把它变成答案。',
-      possibleReason: insight.possibleReason,
-      emotionChange: messages.length == 1
-          ? '这次主要浮现的是$labels。'
-          : '这段对话里，情绪从一开始的表达慢慢变得更具体，主要围绕$labels。',
-      emotionValidation: '这些感受的出现是合理的，它们说明你正在认真对待自己的处境和需要。',
-      actionSuggestion: insight.petSuggestion,
-      nextActions: const ['今晚留十分钟安静下来喝点水', '明天把最牵挂的一件事写成一句话'],
-      closingMessage: '我会陪你慢慢把它放轻一点 🌿',
-    );
   }
 
   String _companionStatusForEmotion(String emotion) {
@@ -455,28 +455,10 @@ class _ConversationTurn {
 
   final String text;
   final bool isUser;
-}
 
-class _JournalSummaryDraft {
-  const _JournalSummaryDraft({
-    required this.summary,
-    required this.warmSummary,
-    required this.possibleReason,
-    required this.emotionChange,
-    required this.emotionValidation,
-    required this.actionSuggestion,
-    required this.nextActions,
-    required this.closingMessage,
-  });
-
-  final String summary;
-  final String warmSummary;
-  final String possibleReason;
-  final String emotionChange;
-  final String emotionValidation;
-  final String actionSuggestion;
-  final List<String> nextActions;
-  final String closingMessage;
+  AgentConversationTurn toAgentTurn() => isUser
+      ? AgentConversationTurn.user(text)
+      : AgentConversationTurn.companion(text);
 }
 
 class _ConversationThread extends StatelessWidget {

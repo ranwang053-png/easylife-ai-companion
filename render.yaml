@@ -16,7 +16,61 @@ envVarGroups:
       - key: SMS_PROVIDER_MAX_ATTEMPTS
         value: 3
       - key: AI_PROVIDER
-        value: fixed
+        value: gateway
+      - key: AI_COMPANION_PROVIDER
+        value: openai
+      - key: AI_COMPANION_MODEL
+        value: gpt-5.5
+      - key: AI_EMOTION_PROVIDER
+        value: anthropic
+      - key: AI_EMOTION_MODEL
+        value: claude-sonnet-4.6
+      - key: AI_EMOTION_JOURNAL_PROVIDER
+        value: anthropic
+      - key: AI_EMOTION_JOURNAL_MODEL
+        value: claude-sonnet-4.6
+      - key: AI_MEMORY_PROVIDER
+        value: anthropic
+      - key: AI_MEMORY_MODEL
+        value: claude-sonnet-4.6
+      - key: AI_PET_PROFILE_PROVIDER
+        value: anthropic
+      - key: AI_PET_PROFILE_MODEL
+        value: claude-sonnet-4.6
+      - key: AI_DAILY_FORTUNE_PROVIDER
+        value: openai
+      - key: AI_DAILY_FORTUNE_MODEL
+        value: gpt-5.5
+      - key: AI_PET_AVATAR_PROVIDER
+        value: openai
+      - key: AI_PET_AVATAR_MODEL
+        value: gpt-image-1
+      - key: AI_DIET_TEXT_PROVIDER
+        value: doubao
+      - key: AI_DIET_TEXT_MODEL
+        value: doubao-seed-1-6
+      - key: AI_DIET_VISION_PROVIDER
+        value: doubao
+      - key: AI_DIET_VISION_MODEL
+        value: doubao-seed-1-6
+      - key: AI_DIET_SEARCH_PROVIDER
+        value: doubao
+      - key: AI_DIET_SEARCH_MODEL
+        value: doubao-seed-1-6
+      - key: AI_FOOD_SEGMENTATION_PROVIDER
+        value: birefnet
+      - key: AI_FOOD_SEGMENTATION_MODEL
+        value: BiRefNet
+      - key: AI_FOOD_IMAGE_ENHANCEMENT
+        value: light
+      - key: OPENAI_BASE_URL
+        value: https://api.openai.com/v1
+      - key: ANTHROPIC_BASE_URL
+        value: https://api.anthropic.com
+      - key: DEEPSEEK_BASE_URL
+        value: https://api.deepseek.com/v1
+      - key: AI_PET_AVATAR_BASE_URL
+        value: https://api.openai.com/v1
       - key: ACCESS_TOKEN_KEY_ID
         value: current
       - key: ACCESS_TOKEN_PREVIOUS_KEYS
@@ -74,6 +128,22 @@ services:
       - key: SMS_PROVIDER_URL
         sync: false
       - key: SMS_PROVIDER_TOKEN
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: DOUBAO_API_KEY
+        sync: false
+      - key: BIREFNET_API_KEY
+        sync: false
+      - key: AI_PET_AVATAR_API_KEY
+        sync: false
+      - key: DOUBAO_BASE_URL
+        sync: false
+      - key: BIREFNET_BASE_URL
         sync: false
 
 databases:

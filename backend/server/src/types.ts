@@ -33,6 +33,35 @@ export interface EmotionAnalyzeResponse {
   petStatus: string;
 }
 
+export interface CompanionReplyResponse {
+  reply: string;
+  emotionLabel: string | null;
+  riskLevel: "none" | "concern" | "crisis";
+  serviceSuggestion:
+    | "breathing"
+    | "emotion_card"
+    | "save_journal"
+    | "self_care"
+    | null;
+}
+
+export interface EmotionJournalSummaryResponse {
+  recap: string;
+  emotionTags: string[];
+  trigger: string;
+  insight: string;
+  nextActions: string[];
+  closingWords: string;
+}
+
+export interface MemoryExtractResponse {
+  memoryCandidates: Array<{
+    type: "preference" | "pattern" | "goal" | "boundary" | "context";
+    content: string;
+    usage: "companion" | "diet" | "fortune" | "profile";
+  }>;
+}
+
 export interface PetAvatarGenerateResponse {
   generatedAvatarUrl: string;
 }

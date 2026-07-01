@@ -262,7 +262,7 @@ void main() {
     expect(result, generatedImage);
   });
 
-  test('HTTP agent does not show mock avatar when backend generation fails',
+  test('HTTP agent falls back to mock avatar when backend generation fails',
       () async {
     const inputImage =
         'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
@@ -278,16 +278,14 @@ void main() {
       }),
     );
 
-    await expectLater(
-      service.generatePetAvatarFromPhoto(inputImage),
-      throwsA(isA<AgentServiceException>()),
-    );
+    final result = await service.generatePetAvatarFromPhoto(inputImage);
+
+    expect(result, 'mock://generated/pet-avatar');
     expect(fallbackReasons, ['pet_avatar_http_503']);
   });
 
   test('HTTP agent explains oversized pet avatar payloads', () async {
-    const inputImage =
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    final inputImage = 'data:image/png;base64,${'a' * (8 * 1024 * 1024)}';
     final service = HttpAgentService(
       baseUri: Uri.parse('https://api.example.com'),
       fallback: const MockAgentService(),
@@ -307,7 +305,8 @@ void main() {
     );
   });
 
-  test('HTTP agent explains unavailable pet avatar provider account', () async {
+  test('HTTP agent falls back when pet avatar provider account is unavailable',
+      () async {
     const inputImage =
         'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
     final service = HttpAgentService(
@@ -317,15 +316,8 @@ void main() {
       client: MockClient((_) async => http.Response('provider forbidden', 403)),
     );
 
-    await expectLater(
-      service.generatePetAvatarFromPhoto(inputImage),
-      throwsA(
-        isA<AgentServiceException>().having(
-          (error) => error.message,
-          'message',
-          contains('额度'),
-        ),
-      ),
-    );
+    final result = await service.generatePetAvatarFromPhoto(inputImage);
+
+    expect(result, 'mock://generated/pet-avatar');
   });
 }

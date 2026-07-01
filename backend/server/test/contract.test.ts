@@ -25,6 +25,7 @@ const config: AppConfig = {
   port: 3000,
   nodeEnv: "test",
   logLevel: "silent",
+  allowedOrigins: [],
   enableTestTriggers: true,
   fixedAccessTokens: [
     "example-access-token-with-at-least-twenty-characters",
@@ -58,8 +59,11 @@ describe("OpenAPI V1.1.0 fixed backend", () => {
         "/v1/auth/sms/codes",
         "/v1/auth/sms/verify",
         "/v1/auth/token/refresh",
+        "/v1/companion/reply",
         "/v1/emotion/analyze",
+        "/v1/emotion-journals/summarize",
         "/v1/me/account",
+        "/v1/memories/extract",
         "/v1/pet-avatar/generate",
         "/v1/sync/pull",
         "/v1/sync/push",
@@ -98,6 +102,26 @@ describe("OpenAPI V1.1.0 fixed backend", () => {
     expect(production.auth?.databaseUrl).toBe(
       "postgresql://localhost/easylife",
     );
+  });
+
+  it("allows configured public web origins for browser requests", async () => {
+    const publicOrigin = "https://ranwang053-png.github.io";
+    const publicApp = createApp({
+      config: {
+        ...config,
+        allowedOrigins: [publicOrigin],
+      },
+    });
+
+    const response = await request(publicApp)
+      .options("/v1/companion/reply")
+      .set("Origin", publicOrigin)
+      .set("Access-Control-Request-Method", "POST")
+      .set("Access-Control-Request-Headers", "Authorization, Content-Type");
+
+    expect(response.status).toBe(204);
+    expect(response.headers["access-control-allow-origin"]).toBe(publicOrigin);
+    expect(response.headers["vary"]).toBe("Origin");
   });
 
   it("returns the fixed SMS challenge", async () => {
@@ -178,6 +202,44 @@ describe("OpenAPI V1.1.0 fixed backend", () => {
     expect(response.status).toBe(200);
     expectSchema("EmotionAnalyzeResponse", response.body);
     expect(response.body).toEqual(contractExample("EmotionAnalyzeResponse"));
+  });
+
+  it("returns the fixed companion reply without saving data", async () => {
+    const response = await request(app)
+      .post("/v1/companion/reply")
+      .set("X-Request-Id", requestId)
+      .set("Authorization", authorization)
+      .send(contractExample("CompanionReplyRequest"));
+
+    expect(response.status).toBe(200);
+    expectSchema("CompanionReplyResponse", response.body);
+    expect(response.body).toEqual(contractExample("CompanionReplyResponse"));
+  });
+
+  it("returns a fixed emotion journal summary without saving data", async () => {
+    const response = await request(app)
+      .post("/v1/emotion-journals/summarize")
+      .set("X-Request-Id", requestId)
+      .set("Authorization", authorization)
+      .send(contractExample("EmotionJournalSummaryRequest"));
+
+    expect(response.status).toBe(200);
+    expectSchema("EmotionJournalSummaryResponse", response.body);
+    expect(response.body).toEqual(
+      contractExample("EmotionJournalSummaryResponse"),
+    );
+  });
+
+  it("returns fixed long-term memory candidates without mutating data", async () => {
+    const response = await request(app)
+      .post("/v1/memories/extract")
+      .set("X-Request-Id", requestId)
+      .set("Authorization", authorization)
+      .send(contractExample("MemoryExtractRequest"));
+
+    expect(response.status).toBe(200);
+    expectSchema("MemoryExtractResponse", response.body);
+    expect(response.body).toEqual(contractExample("MemoryExtractResponse"));
   });
 
   it("returns a fixed pet avatar data URL", async () => {

@@ -3,6 +3,7 @@ export interface AppConfig {
   port: number;
   nodeEnv: string;
   logLevel: "silent" | "info";
+  allowedOrigins: readonly string[];
   enableTestTriggers: boolean;
   fixedAccessTokens: readonly string[];
   ai?: AiConfig;
@@ -44,7 +45,9 @@ export type AiProviderId =
   | "birefnet";
 
 export type AiCapability =
+  | "companion"
   | "emotion"
+  | "emotionJournal"
   | "memory"
   | "petProfile"
   | "dailyFortune"
@@ -105,6 +108,7 @@ export function loadConfig(
     port,
     nodeEnv,
     logLevel: environment.LOG_LEVEL === "silent" ? "silent" : "info",
+    allowedOrigins: originList(environment.ALLOWED_ORIGINS),
     enableTestTriggers: environment.ENABLE_TEST_TRIGGERS === "true",
     fixedAccessTokens: [
       environment.FIXED_ACCESS_TOKEN ??
@@ -242,11 +246,36 @@ function loadAiConfig(environment: NodeJS.ProcessEnv): AiConfig {
   return {
     mode,
     capabilities: {
+      companion: capability(environment, {
+        providerName: "AI_COMPANION_PROVIDER",
+        modelName: "AI_COMPANION_MODEL",
+        fallbackProvider: aiProvider(
+          environment.AI_EMOTION_PROVIDER,
+          "AI_EMOTION_PROVIDER",
+          "openai",
+        ),
+        fallbackModel: nonEmpty(environment.AI_EMOTION_MODEL, "gpt-5.5"),
+      }),
       emotion: capability(environment, {
         providerName: "AI_EMOTION_PROVIDER",
         modelName: "AI_EMOTION_MODEL",
         fallbackProvider: "anthropic",
         fallbackModel: "claude-sonnet-4.6",
+      }),
+      emotionJournal: capability(environment, {
+        providerName: "AI_EMOTION_JOURNAL_PROVIDER",
+        modelName: "AI_EMOTION_JOURNAL_MODEL",
+        fallbackProvider: aiProvider(
+          environment.AI_MEMORY_PROVIDER ?? environment.AI_EMOTION_PROVIDER,
+          environment.AI_MEMORY_PROVIDER === undefined
+            ? "AI_EMOTION_PROVIDER"
+            : "AI_MEMORY_PROVIDER",
+          "openai",
+        ),
+        fallbackModel: nonEmpty(
+          environment.AI_MEMORY_MODEL ?? environment.AI_EMOTION_MODEL,
+          "gpt-5.5",
+        ),
       }),
       memory: capability(environment, {
         providerName: "AI_MEMORY_PROVIDER",
@@ -405,6 +434,28 @@ function required(environment: NodeJS.ProcessEnv, name: string): string {
     throw new Error(`${name} must be configured when DATABASE_URL is set`);
   }
   return value;
+}
+
+function originList(raw: string | undefined): readonly string[] {
+  if (raw === undefined || raw.trim().length === 0) {
+    return [];
+  }
+
+  return raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0)
+    .map((value) => {
+      const normalized = value.replace(/\/+$/, "");
+      const parsed = new URL(normalized);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+        throw new Error("ALLOWED_ORIGINS entries must use HTTP or HTTPS");
+      }
+      if (parsed.origin !== normalized) {
+        throw new Error("ALLOWED_ORIGINS entries must be origins without paths");
+      }
+      return parsed.origin;
+    });
 }
 
 function optionalSecret(raw: string | undefined): string | undefined {

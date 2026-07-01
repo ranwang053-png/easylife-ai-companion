@@ -5,11 +5,20 @@ import type {
   AiProviderConfig,
   AiProviderId,
 } from "../config.js";
+import { FixedCompanionReplyProvider } from "../providers/fixed-companion-reply-provider.js";
 import { FixedEmotionProvider } from "../providers/fixed-emotion-provider.js";
+import { FixedEmotionJournalProvider } from "../providers/fixed-emotion-journal-provider.js";
+import { FixedMemoryExtractionProvider } from "../providers/fixed-memory-extraction-provider.js";
 import { FixedPetAvatarProvider } from "../providers/fixed-pet-avatar-provider.js";
+import type { CompanionReplyProvider } from "../providers/companion-reply-provider.js";
 import type { EmotionProvider } from "../providers/emotion-provider.js";
+import type { EmotionJournalProvider } from "../providers/emotion-journal-provider.js";
+import type { MemoryExtractionProvider } from "../providers/memory-extraction-provider.js";
 import type { PetAvatarProvider } from "../providers/pet-avatar-provider.js";
+import { TextModelCompanionReplyProvider } from "./companion-reply-provider-adapter.js";
 import { TextModelEmotionProvider } from "./emotion-provider-adapter.js";
+import { TextModelEmotionJournalProvider } from "./emotion-journal-provider-adapter.js";
+import { TextModelMemoryExtractionProvider } from "./memory-extraction-provider-adapter.js";
 import { OpenAiPetAvatarProvider } from "./pet-avatar-provider-adapter.js";
 import { createTextModelAdapter } from "./text-model-adapters.js";
 
@@ -17,7 +26,10 @@ export interface AiProviderRegistry {
   readonly mode: AiConfig["mode"];
   capability(capability: AiCapability): AiCapabilityConfig;
   provider(provider: AiProviderId): AiProviderConfig;
+  companionReplyProvider(): CompanionReplyProvider;
   emotionProvider(): EmotionProvider;
+  emotionJournalProvider(): EmotionJournalProvider;
+  memoryExtractionProvider(): MemoryExtractionProvider;
   petAvatarProvider(): PetAvatarProvider;
 }
 
@@ -42,6 +54,17 @@ class ConfiguredAiProviderRegistry implements AiProviderRegistry {
     return this.config.providers[provider];
   }
 
+  companionReplyProvider(): CompanionReplyProvider {
+    if (this.config.mode === "fixed") return new FixedCompanionReplyProvider();
+    const route = this.capability("companion");
+    if (route.provider === "fixed") return new FixedCompanionReplyProvider();
+    const adapter = createTextModelAdapter(
+      route.provider,
+      this.provider(route.provider),
+    );
+    return new TextModelCompanionReplyProvider(adapter, route.model);
+  }
+
   emotionProvider(): EmotionProvider {
     if (this.config.mode === "fixed") return new FixedEmotionProvider();
     const route = this.capability("emotion");
@@ -51,6 +74,28 @@ class ConfiguredAiProviderRegistry implements AiProviderRegistry {
       this.provider(route.provider),
     );
     return new TextModelEmotionProvider(adapter, route.model);
+  }
+
+  emotionJournalProvider(): EmotionJournalProvider {
+    if (this.config.mode === "fixed") return new FixedEmotionJournalProvider();
+    const route = this.capability("emotionJournal");
+    if (route.provider === "fixed") return new FixedEmotionJournalProvider();
+    const adapter = createTextModelAdapter(
+      route.provider,
+      this.provider(route.provider),
+    );
+    return new TextModelEmotionJournalProvider(adapter, route.model);
+  }
+
+  memoryExtractionProvider(): MemoryExtractionProvider {
+    if (this.config.mode === "fixed") return new FixedMemoryExtractionProvider();
+    const route = this.capability("memory");
+    if (route.provider === "fixed") return new FixedMemoryExtractionProvider();
+    const adapter = createTextModelAdapter(
+      route.provider,
+      this.provider(route.provider),
+    );
+    return new TextModelMemoryExtractionProvider(adapter, route.model);
   }
 
   petAvatarProvider(): PetAvatarProvider {
@@ -72,7 +117,9 @@ function defaultAiConfig(): AiConfig {
   return {
     mode: "fixed",
     capabilities: {
+      companion: { provider: "fixed", model: "fixed" },
       emotion: { provider: "fixed", model: "fixed" },
+      emotionJournal: { provider: "fixed", model: "fixed" },
       memory: { provider: "fixed", model: "fixed" },
       petProfile: { provider: "fixed", model: "fixed" },
       dailyFortune: { provider: "fixed", model: "fixed" },

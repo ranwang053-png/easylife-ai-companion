@@ -63,6 +63,7 @@ integration("PostgreSQL authentication", () => {
     port: 3000,
     nodeEnv: "test",
     logLevel: "silent",
+    allowedOrigins: [],
     enableTestTriggers: false,
     fixedAccessTokens: [],
   };

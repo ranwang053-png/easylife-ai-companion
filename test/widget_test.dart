@@ -740,7 +740,7 @@ void main() {
     await tester.ensureVisible(find.text('保存情绪日记'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('保存情绪日记'));
-    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(milliseconds: 1200));
     expect(find.text('已保存情绪日记'), findsOneWidget);
     await tester.pump(const Duration(milliseconds: 700));
     await tester.pumpAndSettle();

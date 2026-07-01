@@ -25,6 +25,12 @@ tags:
     description: 中国大陆手机号、短信验证码和会话管理
   - name: Emotion
     description: 情绪分析与陪伴回复
+  - name: Companion
+    description: 桌宠式多轮陪伴回复与情绪日记整理
+  - name: Memory
+    description: 长期记忆候选提炼
+  - name: Pet
+    description: 伙伴档案和伙伴形象生成
   - name: Sync
     description: 本地优先的增量数据同步
   - name: Account
@@ -208,6 +214,147 @@ paths:
               examples:
                 default:
                   $ref: "#/components/examples/EmotionAnalyzeResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLargeError"
+        "422":
+          $ref: "#/components/responses/AiOutputInvalidError"
+        "429":
+          $ref: "#/components/responses/RateLimitedError"
+        "503":
+          $ref: "#/components/responses/AiProviderUnavailableError"
+  /v1/companion/reply:
+    post:
+      tags:
+        - Companion
+      operationId: createCompanionReply
+      summary: 生成陪伴式多轮回复
+      description: |
+        根据本轮已授权对话和最小化上下文生成一条朋友式陪伴回复。该接口只负责
+        水上对话体验，不创建情绪日记，也不保存长期记忆。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompanionReplyRequest"
+            examples:
+              default:
+                $ref: "#/components/examples/CompanionReplyRequest"
+      responses:
+        "200":
+          description: 陪伴回复生成成功
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompanionReplyResponse"
+              examples:
+                default:
+                  $ref: "#/components/examples/CompanionReplyResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLargeError"
+        "422":
+          $ref: "#/components/responses/AiOutputInvalidError"
+        "429":
+          $ref: "#/components/responses/RateLimitedError"
+        "503":
+          $ref: "#/components/responses/AiProviderUnavailableError"
+  /v1/emotion-journals/summarize:
+    post:
+      tags:
+        - Companion
+      operationId: summarizeEmotionJournal
+      summary: 整理本轮陪伴对话为情绪日记
+      description: |
+        仅在用户主动点击保存情绪日记后调用。服务端根据完整本轮对话整理结构化日记
+        内容；调用该接口本身不写数据库，保存仍由客户端本地优先与同步流程完成。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmotionJournalSummaryRequest"
+            examples:
+              default:
+                $ref: "#/components/examples/EmotionJournalSummaryRequest"
+      responses:
+        "200":
+          description: 情绪日记整理成功
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmotionJournalSummaryResponse"
+              examples:
+                default:
+                  $ref: "#/components/examples/EmotionJournalSummaryResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "413":
+          $ref: "#/components/responses/PayloadTooLargeError"
+        "422":
+          $ref: "#/components/responses/AiOutputInvalidError"
+        "429":
+          $ref: "#/components/responses/RateLimitedError"
+        "503":
+          $ref: "#/components/responses/AiProviderUnavailableError"
+  /v1/memories/extract:
+    post:
+      tags:
+        - Memory
+      operationId: extractLongTermMemoryCandidates
+      summary: 从已确认保存内容中提炼长期记忆候选
+      description: |
+        只从用户已经确认保存的内容中提炼低敏、稳定、可复用的记忆候选。接口不直接
+        修改用户记忆列表，最终增删改仍由客户端或同步写入流程确认。
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RequestId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MemoryExtractRequest"
+            examples:
+              default:
+                $ref: "#/components/examples/MemoryExtractRequest"
+      responses:
+        "200":
+          description: 长期记忆候选提炼成功
+          headers:
+            X-Request-Id:
+              $ref: "#/components/headers/RequestId"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemoryExtractResponse"
+              examples:
+                default:
+                  $ref: "#/components/examples/MemoryExtractResponse"
         "400":
           $ref: "#/components/responses/ValidationError"
         "401":
@@ -1180,6 +1327,209 @@ components:
           $ref: "#/components/schemas/EmotionContext"
         client:
           $ref: "#/components/schemas/ClientContext"
+    ConversationTurn:
+      type: object
+      additionalProperties: false
+      required:
+        - role
+        - text
+      properties:
+        role:
+          type: string
+          enum:
+            - user
+            - companion
+        text:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        occurredAt:
+          type: string
+          format: date-time
+    CompanionReplyRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - conversation
+        - context
+        - client
+      properties:
+        conversation:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            $ref: "#/components/schemas/ConversationTurn"
+          description: 仅包含当前本轮对话，不传历史日记全文。
+        context:
+          $ref: "#/components/schemas/EmotionContext"
+        client:
+          $ref: "#/components/schemas/ClientContext"
+    CompanionReplyResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - reply
+        - emotionLabel
+        - riskLevel
+        - serviceSuggestion
+      properties:
+        reply:
+          type: string
+          minLength: 1
+          maxLength: 220
+          description: 前端直接展示给用户的伙伴回复。
+        emotionLabel:
+          type:
+            - string
+            - "null"
+          maxLength: 40
+          description: 可选的自然情绪命名，用于状态和保存流程，不直接作为报告展示。
+        riskLevel:
+          type: string
+          enum:
+            - none
+            - concern
+            - crisis
+        serviceSuggestion:
+          type:
+            - string
+            - "null"
+          enum:
+            - breathing
+            - emotion_card
+            - save_journal
+            - self_care
+            - null
+    EmotionJournalSummaryRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - conversation
+        - context
+        - client
+      properties:
+        conversation:
+          type: array
+          minItems: 1
+          maxItems: 40
+          items:
+            $ref: "#/components/schemas/ConversationTurn"
+          description: 用户主动保存时的完整本轮对话。
+        context:
+          $ref: "#/components/schemas/EmotionContext"
+        client:
+          $ref: "#/components/schemas/ClientContext"
+    EmotionJournalSummaryResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - recap
+        - emotionTags
+        - trigger
+        - insight
+        - nextActions
+        - closingWords
+      properties:
+        recap:
+          type: string
+          minLength: 1
+          maxLength: 160
+        emotionTags:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 30
+        trigger:
+          type: string
+          minLength: 1
+          maxLength: 160
+        insight:
+          type: string
+          minLength: 1
+          maxLength: 240
+        nextActions:
+          type: array
+          minItems: 1
+          maxItems: 2
+          items:
+            type: string
+            minLength: 1
+            maxLength: 80
+        closingWords:
+          type: string
+          minLength: 1
+          maxLength: 60
+    MemoryExtractRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - sourceType
+        - sourceContent
+        - existingMemories
+        - client
+      properties:
+        sourceType:
+          type: string
+          enum:
+            - emotion_journal
+            - diet_record
+            - user_profile
+        sourceContent:
+          type: object
+          additionalProperties: true
+          description: 已经由用户确认保存的结构化内容，不传手机号、验证码或完整未确认对话。
+        existingMemories:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+        client:
+          $ref: "#/components/schemas/ClientContext"
+    MemoryCandidate:
+      type: object
+      additionalProperties: false
+      required:
+        - type
+        - content
+        - usage
+      properties:
+        type:
+          type: string
+          enum:
+            - preference
+            - pattern
+            - goal
+            - boundary
+            - context
+        content:
+          type: string
+          minLength: 1
+          maxLength: 30
+        usage:
+          type: string
+          enum:
+            - companion
+            - diet
+            - fortune
+            - profile
+    MemoryExtractResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - memoryCandidates
+      properties:
+        memoryCandidates:
+          type: array
+          maxItems: 2
+          items:
+            $ref: "#/components/schemas/MemoryCandidate"
     PetAvatarGenerateRequest:
       type: object
       additionalProperties: false
@@ -1804,6 +2154,103 @@ components:
         petSuggestion: 先缩减今晚必须完成的任务，给自己留出十分钟休息。
         petReply: 听起来你已经撑了很久，我们先慢一点。
         petStatus: 陪伴中
+    CompanionReplyRequest:
+      summary: 本轮陪伴对话
+      value:
+        conversation:
+          - role: user
+            text: 今天工作很多，我有点累，也担心做得不够好。
+          - role: companion
+            text: 听起来你已经撑了一整天，不只是累，也有一点怕自己不够好。
+          - role: user
+            text: 对，我就是觉得怎么做都不够。
+        context:
+          nickname: 小满
+          goals:
+            - 规律作息
+          personalTags:
+            - 工作压力较高
+          memoryNotes:
+            - 低落时更希望先被倾听
+          petReminderStyle: 轻提醒
+          companion:
+            name: 一团
+            personalityTags:
+              - 安静
+              - 贴心
+            relationshipNote: 我的陪伴伙伴
+            personalitySummary: 安静地陪在身边，会在你忙过头时轻轻提醒休息。
+        client:
+          platform: ios
+          appVersion: 0.3.0+3
+          locale: zh-CN
+    CompanionReplyResponse:
+      summary: 朋友式陪伴回复
+      value:
+        reply: 我听见你已经很努力了，却还在怀疑自己。这种紧绷真的会很累。现在最压着你的，是任务本身，还是怕被否定？
+        emotionLabel: 努力后的疲惫感
+        riskLevel: none
+        serviceSuggestion: null
+    EmotionJournalSummaryRequest:
+      summary: 保存本轮对话
+      value:
+        conversation:
+          - role: user
+            text: 今天工作很多，我有点累，也担心做得不够好。
+          - role: companion
+            text: 听起来你已经撑了一整天，不只是累，也有一点怕自己不够好。
+          - role: user
+            text: 对，我就是觉得怎么做都不够。
+        context:
+          nickname: 小满
+          goals:
+            - 规律作息
+          personalTags:
+            - 工作压力较高
+          memoryNotes:
+            - 低落时更希望先被倾听
+          petReminderStyle: 轻提醒
+        client:
+          platform: ios
+          appVersion: 0.3.0+3
+          locale: zh-CN
+    EmotionJournalSummaryResponse:
+      summary: 情绪日记整理结果
+      value:
+        recap: 今天聊到工作任务很多，身体疲惫，同时担心自己做得不够好。
+        emotionTags:
+          - 疲惫
+          - 压力
+          - 自我怀疑
+        trigger: 工作任务密集，让用户感觉自己一直在撑着完成，也担心结果不够好。
+        insight: 这份累不只是身体消耗，也包含对自我要求很高后的紧绷；它正在被慢慢看见。
+        nextActions:
+          - 今晚只保留一件必须完成的小事
+          - 睡前把明天最重要的事写成一句话
+        closingWords: 你不用一次把所有事都扛好 🌿
+    MemoryExtractRequest:
+      summary: 从已保存日记提炼记忆候选
+      value:
+        sourceType: emotion_journal
+        sourceContent:
+          recap: 今天聊到工作任务很多，身体疲惫，同时担心自己做得不够好。
+          emotionTags:
+            - 疲惫
+            - 压力
+          insight: 用户低落时更希望先被倾听，再慢慢梳理下一步。
+        existingMemories:
+          - 低落时更希望先被倾听
+        client:
+          platform: ios
+          appVersion: 0.3.0+3
+          locale: zh-CN
+    MemoryExtractResponse:
+      summary: 低敏长期记忆候选
+      value:
+        memoryCandidates:
+          - type: boundary
+            content: 累的时候不喜欢被催促
+            usage: companion
     PetAvatarGenerateRequest:
       summary: 上传照片生成伙伴形象
       value:

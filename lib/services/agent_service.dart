@@ -18,6 +18,24 @@ abstract interface class AgentService {
     PetProfile? companion,
   });
 
+  Future<CompanionReplyResult> generateCompanionReply(
+    List<AgentConversationTurn> conversation,
+    UserProfile profile, {
+    PetProfile? companion,
+  });
+
+  Future<EmotionJournalSummaryResult> summarizeEmotionJournal(
+    List<AgentConversationTurn> conversation,
+    UserProfile profile, {
+    PetProfile? companion,
+  });
+
+  Future<List<LongTermMemoryCandidate>> extractLongTermMemoryCandidates({
+    required String sourceType,
+    required Map<String, Object?> sourceContent,
+    required List<String> existingMemories,
+  });
+
   Future<FoodEstimate> estimateCalories(
     String foodDescription,
     String mealType,
@@ -59,6 +77,71 @@ class AgentServiceException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class AgentConversationTurn {
+  const AgentConversationTurn({
+    required this.role,
+    required this.text,
+  });
+
+  const AgentConversationTurn.user(String text)
+      : this(role: 'user', text: text);
+
+  const AgentConversationTurn.companion(String text)
+      : this(role: 'companion', text: text);
+
+  final String role;
+  final String text;
+
+  Map<String, Object> toJson() => {
+        'role': role,
+        'text': text,
+      };
+}
+
+class CompanionReplyResult {
+  const CompanionReplyResult({
+    required this.reply,
+    required this.riskLevel,
+    this.emotionLabel,
+    this.serviceSuggestion,
+  });
+
+  final String reply;
+  final String? emotionLabel;
+  final String riskLevel;
+  final String? serviceSuggestion;
+}
+
+class EmotionJournalSummaryResult {
+  const EmotionJournalSummaryResult({
+    required this.recap,
+    required this.emotionTags,
+    required this.trigger,
+    required this.insight,
+    required this.nextActions,
+    required this.closingWords,
+  });
+
+  final String recap;
+  final List<String> emotionTags;
+  final String trigger;
+  final String insight;
+  final List<String> nextActions;
+  final String closingWords;
+}
+
+class LongTermMemoryCandidate {
+  const LongTermMemoryCandidate({
+    required this.type,
+    required this.content,
+    required this.usage,
+  });
+
+  final String type;
+  final String content;
+  final String usage;
 }
 
 AgentService createAgentService({
@@ -188,6 +271,216 @@ class HttpAgentService implements AgentService {
   }
 
   @override
+  Future<CompanionReplyResult> generateCompanionReply(
+    List<AgentConversationTurn> conversation,
+    UserProfile profile, {
+    PetProfile? companion,
+  }) async {
+    try {
+      final accessToken = await accessTokenProvider();
+      if (accessToken == null) {
+        return _fallbackCompanionReply(
+          conversation,
+          profile,
+          'missing_access_token',
+          companion: companion,
+        );
+      }
+      final response = await _client
+          .post(
+            baseUri.resolve('/v1/companion/reply'),
+            headers: _jsonHeaders(accessToken),
+            body: jsonEncode({
+              'conversation':
+                  conversation.map((turn) => turn.toJson()).toList(),
+              'context': _emotionContext(profile, companion),
+              'client': _clientContext(),
+            }),
+          )
+          .timeout(const Duration(seconds: 18));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return _fallbackCompanionReply(
+          conversation,
+          profile,
+          'companion_http_${response.statusCode}',
+          companion: companion,
+        );
+      }
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return CompanionReplyResult(
+        reply: json['reply'] as String,
+        emotionLabel: json['emotionLabel'] as String?,
+        riskLevel: json['riskLevel'] as String,
+        serviceSuggestion: json['serviceSuggestion'] as String?,
+      );
+    } on Exception catch (error) {
+      return _fallbackCompanionReply(
+        conversation,
+        profile,
+        'companion_${error.runtimeType}',
+        companion: companion,
+      );
+    }
+  }
+
+  Future<CompanionReplyResult> _fallbackCompanionReply(
+    List<AgentConversationTurn> conversation,
+    UserProfile profile,
+    String reason, {
+    PetProfile? companion,
+  }) async {
+    onFallback?.call(reason);
+    return fallback.generateCompanionReply(
+      conversation,
+      profile,
+      companion: companion,
+    );
+  }
+
+  @override
+  Future<EmotionJournalSummaryResult> summarizeEmotionJournal(
+    List<AgentConversationTurn> conversation,
+    UserProfile profile, {
+    PetProfile? companion,
+  }) async {
+    try {
+      final accessToken = await accessTokenProvider();
+      if (accessToken == null) {
+        return _fallbackJournalSummary(
+          conversation,
+          profile,
+          'journal_missing_access_token',
+          companion: companion,
+        );
+      }
+      final response = await _client
+          .post(
+            baseUri.resolve('/v1/emotion-journals/summarize'),
+            headers: _jsonHeaders(accessToken),
+            body: jsonEncode({
+              'conversation':
+                  conversation.map((turn) => turn.toJson()).toList(),
+              'context': _emotionContext(profile, companion),
+              'client': _clientContext(),
+            }),
+          )
+          .timeout(const Duration(seconds: 24));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return _fallbackJournalSummary(
+          conversation,
+          profile,
+          'journal_http_${response.statusCode}',
+          companion: companion,
+        );
+      }
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      return EmotionJournalSummaryResult(
+        recap: json['recap'] as String,
+        emotionTags:
+            (json['emotionTags'] as List<dynamic>).whereType<String>().toList(),
+        trigger: json['trigger'] as String,
+        insight: json['insight'] as String,
+        nextActions:
+            (json['nextActions'] as List<dynamic>).whereType<String>().toList(),
+        closingWords: json['closingWords'] as String,
+      );
+    } on Exception catch (error) {
+      return _fallbackJournalSummary(
+        conversation,
+        profile,
+        'journal_${error.runtimeType}',
+        companion: companion,
+      );
+    }
+  }
+
+  Future<EmotionJournalSummaryResult> _fallbackJournalSummary(
+    List<AgentConversationTurn> conversation,
+    UserProfile profile,
+    String reason, {
+    PetProfile? companion,
+  }) async {
+    onFallback?.call(reason);
+    return fallback.summarizeEmotionJournal(
+      conversation,
+      profile,
+      companion: companion,
+    );
+  }
+
+  @override
+  Future<List<LongTermMemoryCandidate>> extractLongTermMemoryCandidates({
+    required String sourceType,
+    required Map<String, Object?> sourceContent,
+    required List<String> existingMemories,
+  }) async {
+    try {
+      final accessToken = await accessTokenProvider();
+      if (accessToken == null) {
+        return _fallbackMemoryExtraction(
+          sourceType: sourceType,
+          sourceContent: sourceContent,
+          existingMemories: existingMemories,
+          reason: 'memory_missing_access_token',
+        );
+      }
+      final response = await _client
+          .post(
+            baseUri.resolve('/v1/memories/extract'),
+            headers: _jsonHeaders(accessToken),
+            body: jsonEncode({
+              'sourceType': sourceType,
+              'sourceContent': sourceContent,
+              'existingMemories': existingMemories.reversed.take(12).toList(),
+              'client': _clientContext(),
+            }),
+          )
+          .timeout(const Duration(seconds: 18));
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        return _fallbackMemoryExtraction(
+          sourceType: sourceType,
+          sourceContent: sourceContent,
+          existingMemories: existingMemories,
+          reason: 'memory_http_${response.statusCode}',
+        );
+      }
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final candidates = json['memoryCandidates'] as List<dynamic>;
+      return candidates
+          .whereType<Map<String, dynamic>>()
+          .map(
+            (candidate) => LongTermMemoryCandidate(
+              type: candidate['type'] as String,
+              content: candidate['content'] as String,
+              usage: candidate['usage'] as String,
+            ),
+          )
+          .toList();
+    } on Exception catch (error) {
+      return _fallbackMemoryExtraction(
+        sourceType: sourceType,
+        sourceContent: sourceContent,
+        existingMemories: existingMemories,
+        reason: 'memory_${error.runtimeType}',
+      );
+    }
+  }
+
+  Future<List<LongTermMemoryCandidate>> _fallbackMemoryExtraction({
+    required String sourceType,
+    required Map<String, Object?> sourceContent,
+    required List<String> existingMemories,
+    required String reason,
+  }) async {
+    onFallback?.call(reason);
+    return fallback.extractLongTermMemoryCandidates(
+      sourceType: sourceType,
+      sourceContent: sourceContent,
+      existingMemories: existingMemories,
+    );
+  }
+
+  @override
   Future<FoodEstimate> estimateCalories(
     String foodDescription,
     String mealType,
@@ -233,7 +526,7 @@ class HttpAgentService implements AgentService {
       final accessToken = await accessTokenProvider();
       if (accessToken == null) {
         onFallback?.call('pet_avatar_missing_access_token');
-        throw const AgentServiceException('生成形象需要重新进入 Demo 后再试');
+        return fallback.generatePetAvatarFromPhoto(imagePath);
       }
       final response = await _client
           .post(
@@ -255,22 +548,20 @@ class HttpAgentService implements AgentService {
           .timeout(const Duration(seconds: 90));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         onFallback?.call('pet_avatar_http_${response.statusCode}');
-        throw AgentServiceException(
-          _petAvatarErrorMessage(response.statusCode),
-        );
+        return fallback.generatePetAvatarFromPhoto(imagePath);
       }
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       final generatedAvatarUrl = json['generatedAvatarUrl'] as String?;
       if (generatedAvatarUrl == null || generatedAvatarUrl.isEmpty) {
         onFallback?.call('pet_avatar_invalid_response');
-        throw const AgentServiceException('AI 形象生成结果异常，请重新生成');
+        return fallback.generatePetAvatarFromPhoto(imagePath);
       }
       return generatedAvatarUrl;
     } on AgentServiceException {
       rethrow;
     } on Exception catch (error) {
       onFallback?.call('pet_avatar_${error.runtimeType}');
-      throw const AgentServiceException('AI 形象生成暂时不可用，请稍后重试');
+      return fallback.generatePetAvatarFromPhoto(imagePath);
     }
   }
 
@@ -309,6 +600,31 @@ Map<String, Object> _companionContext(PetProfile companion) {
     if (personalitySummary.isNotEmpty) 'personalitySummary': personalitySummary,
   };
 }
+
+Map<String, String> _jsonHeaders(String accessToken) => {
+      'content-type': 'application/json',
+      'Authorization': 'Bearer $accessToken',
+      'X-Request-Id': _randomUuid(),
+    };
+
+Map<String, Object> _clientContext() => {
+      'platform': _clientPlatform(),
+      'appVersion': '0.3.0+3',
+      'locale': 'zh-CN',
+    };
+
+Map<String, Object> _emotionContext(
+  UserProfile profile,
+  PetProfile? companion,
+) =>
+    {
+      'nickname': profile.nickname,
+      'goals': profile.goals.take(10).toList(),
+      'personalTags': profile.personalTags.take(20).toList(),
+      'memoryNotes': profile.memoryNotes.reversed.take(12).toList(),
+      'petReminderStyle': profile.petReminderStyle,
+      if (companion != null) 'companion': _companionContext(companion),
+    };
 
 String _limitedText(String value, int maxLength) {
   final trimmed = value.trim();
@@ -427,6 +743,90 @@ class MockAgentService implements AgentService {
           '你想继续聊今天发生的事，还是一起安排一个轻松的小计划？',
       petStatus: '安静听你说',
     );
+  }
+
+  @override
+  Future<CompanionReplyResult> generateCompanionReply(
+    List<AgentConversationTurn> conversation,
+    UserProfile profile, {
+    PetProfile? companion,
+  }) async {
+    final userText = conversation
+        .where((turn) => turn.role == 'user')
+        .map((turn) => turn.text)
+        .join('\n');
+    final insight = await analyzeEmotion(
+      userText.isEmpty ? '今天有点说不上来的情绪。' : userText,
+      profile,
+      companion: companion,
+    );
+    final reply = insight.petReply.split('\n\n').first;
+    return CompanionReplyResult(
+      reply: reply.length > 120 ? '${reply.substring(0, 120)}…' : reply,
+      emotionLabel:
+          insight.allLabels.isEmpty ? insight.label : insight.allLabels.first,
+      riskLevel: 'none',
+    );
+  }
+
+  @override
+  Future<EmotionJournalSummaryResult> summarizeEmotionJournal(
+    List<AgentConversationTurn> conversation,
+    UserProfile profile, {
+    PetProfile? companion,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 360));
+    final userMessages = conversation
+        .where((turn) => turn.role == 'user')
+        .map((turn) => turn.text.trim())
+        .where((text) => text.isNotEmpty)
+        .toList(growable: false);
+    final fullText = userMessages.join('；');
+    final insight = await analyzeEmotion(
+      fullText.isEmpty ? '今天有一点复杂的感受。' : fullText,
+      profile,
+      companion: companion,
+    );
+    final tags = insight.allLabels.take(3).toList();
+    return EmotionJournalSummaryResult(
+      recap: userMessages.length <= 1
+          ? (fullText.isEmpty ? '今天记录了一段当下的感受。' : fullText)
+          : '这轮对话里，你从“${userMessages.first}”慢慢说到了“${userMessages.last}”。',
+      emotionTags: tags.isEmpty ? [insight.label] : tags,
+      trigger: insight.possibleReason,
+      insight: '这份感受正在被你一点点看见，不需要马上变成答案。',
+      nextActions: const [
+        '今晚只保留一件必须完成的小事',
+        '睡前把明天最重要的事写成一句话',
+      ],
+      closingWords: '你不用一次把所有事都扛好 🌿',
+    );
+  }
+
+  @override
+  Future<List<LongTermMemoryCandidate>> extractLongTermMemoryCandidates({
+    required String sourceType,
+    required Map<String, Object?> sourceContent,
+    required List<String> existingMemories,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 180));
+    final tags = (sourceContent['emotionTags'] as List?)
+            ?.whereType<String>()
+            .take(2)
+            .join('、') ??
+        '';
+    if (tags.isEmpty) return const [];
+    final content = '$tags时更适合先被倾听';
+    if (existingMemories.any((memory) => memory.contains(content))) {
+      return const [];
+    }
+    return [
+      LongTermMemoryCandidate(
+        type: 'preference',
+        content: content.length > 30 ? content.substring(0, 30) : content,
+        usage: 'companion',
+      ),
+    ];
   }
 
   @override

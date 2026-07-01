@@ -2,6 +2,25 @@
 
 本文件记录前后端接口契约变化，不记录 Flutter 或后端内部实现变化。
 
+## 1.1.0 - 2026-07-01 compatible additions
+
+### Added
+
+- 增加 `POST /v1/companion/reply`，用于桌宠陪伴式多轮回复。该接口只返回水上聊天需要的
+  `reply`、可选情绪命名、风险等级和可选服务建议，不保存情绪日记。
+- 增加 `POST /v1/emotion-journals/summarize`，仅在用户主动保存情绪日记后，根据完整本轮
+  对话整理结构化日记内容；接口本身不写数据库。
+- 增加 `POST /v1/memories/extract`，从用户已确认保存的内容中提炼低敏长期记忆候选；
+  接口不直接修改长期记忆列表。
+- 增加上述三个接口的请求、响应 schema 和固定响应示例。
+
+### Decisions
+
+- 旧 `POST /v1/emotion/analyze` 保持兼容；新陪伴页优先使用独立陪伴回复接口，保存时再调用
+  情绪日记整理和长期记忆提炼接口。
+- AI Provider 失败时客户端可按本地优先策略回退到本地示例能力；服务端仍通过
+  `AI_OUTPUT_INVALID` 和 `AI_PROVIDER_UNAVAILABLE` 保持错误边界清晰。
+
 ## 1.1.0 - 2026-06-15
 
 ### Added

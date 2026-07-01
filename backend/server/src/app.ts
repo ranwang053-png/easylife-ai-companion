@@ -9,26 +9,38 @@ import {
   validateContractSchema,
 } from "./contract.js";
 import {
+  cors,
   errorHandler,
-  localCors,
   requestContext,
   requireBearerToken,
   sendError,
   testErrorTrigger,
 } from "./http.js";
+import { FixedCompanionReplyProvider } from "./providers/fixed-companion-reply-provider.js";
 import { FixedEmotionProvider } from "./providers/fixed-emotion-provider.js";
+import { FixedEmotionJournalProvider } from "./providers/fixed-emotion-journal-provider.js";
+import { FixedMemoryExtractionProvider } from "./providers/fixed-memory-extraction-provider.js";
 import { FixedPetAvatarProvider } from "./providers/fixed-pet-avatar-provider.js";
+import type { CompanionReplyProvider } from "./providers/companion-reply-provider.js";
 import type { EmotionProvider } from "./providers/emotion-provider.js";
+import type { EmotionJournalProvider } from "./providers/emotion-journal-provider.js";
+import type { MemoryExtractionProvider } from "./providers/memory-extraction-provider.js";
 import type { PetAvatarProvider } from "./providers/pet-avatar-provider.js";
 import type {
+  CompanionReplyResponse,
   EmotionAnalyzeResponse,
+  EmotionJournalSummaryResponse,
   JsonObject,
+  MemoryExtractResponse,
   PetAvatarGenerateResponse,
 } from "./types.js";
 
 interface AppDependencies {
   config: AppConfig;
+  companionReplyProvider?: CompanionReplyProvider;
   emotionProvider?: EmotionProvider;
+  emotionJournalProvider?: EmotionJournalProvider;
+  memoryExtractionProvider?: MemoryExtractionProvider;
   petAvatarProvider?: PetAvatarProvider;
   authService?: AuthService;
 }
@@ -56,8 +68,14 @@ function sendExample(
 
 export function createApp(dependencies: AppDependencies) {
   const app = express();
+  const companionReplyProvider =
+    dependencies.companionReplyProvider ?? new FixedCompanionReplyProvider();
   const emotionProvider =
     dependencies.emotionProvider ?? new FixedEmotionProvider();
+  const emotionJournalProvider =
+    dependencies.emotionJournalProvider ?? new FixedEmotionJournalProvider();
+  const memoryExtractionProvider =
+    dependencies.memoryExtractionProvider ?? new FixedMemoryExtractionProvider();
   const petAvatarProvider =
     dependencies.petAvatarProvider ?? new FixedPetAvatarProvider();
   const { config } = dependencies;
@@ -76,7 +94,7 @@ export function createApp(dependencies: AppDependencies) {
   if (config.auth?.trustProxy === true) {
     app.set("trust proxy", 1);
   }
-  app.use(localCors);
+  app.use(cors(config));
   app.use(requestContext(config));
 
   app.post(
@@ -246,6 +264,105 @@ export function createApp(dependencies: AppDependencies) {
         }
 
         response.json(result satisfies EmotionAnalyzeResponse);
+      } catch (error) {
+        void error;
+        sendError(response, request.requestId, "AI_PROVIDER_UNAVAILABLE");
+      }
+    },
+  );
+
+  app.post(
+    "/v1/companion/reply",
+    requireBearerToken(authService),
+    testErrorTrigger(config, [
+      "VALIDATION_ERROR",
+      "PAYLOAD_TOO_LARGE",
+      "AI_OUTPUT_INVALID",
+      "RATE_LIMITED",
+      "AI_PROVIDER_UNAVAILABLE",
+    ]),
+    validateBody("CompanionReplyRequest"),
+    async (request, response) => {
+      try {
+        const result = await companionReplyProvider.reply(
+          request.body as JsonObject,
+        );
+        const validation = validateContractSchema(
+          "CompanionReplyResponse",
+          result,
+        );
+
+        if (!validation.valid) {
+          sendError(response, request.requestId, "AI_OUTPUT_INVALID");
+          return;
+        }
+
+        response.json(result satisfies CompanionReplyResponse);
+      } catch (error) {
+        void error;
+        sendError(response, request.requestId, "AI_PROVIDER_UNAVAILABLE");
+      }
+    },
+  );
+
+  app.post(
+    "/v1/emotion-journals/summarize",
+    requireBearerToken(authService),
+    testErrorTrigger(config, [
+      "VALIDATION_ERROR",
+      "PAYLOAD_TOO_LARGE",
+      "AI_OUTPUT_INVALID",
+      "RATE_LIMITED",
+      "AI_PROVIDER_UNAVAILABLE",
+    ]),
+    validateBody("EmotionJournalSummaryRequest"),
+    async (request, response) => {
+      try {
+        const result = await emotionJournalProvider.summarize(
+          request.body as JsonObject,
+        );
+        const validation = validateContractSchema(
+          "EmotionJournalSummaryResponse",
+          result,
+        );
+
+        if (!validation.valid) {
+          sendError(response, request.requestId, "AI_OUTPUT_INVALID");
+          return;
+        }
+
+        response.json(result satisfies EmotionJournalSummaryResponse);
+      } catch (error) {
+        void error;
+        sendError(response, request.requestId, "AI_PROVIDER_UNAVAILABLE");
+      }
+    },
+  );
+
+  app.post(
+    "/v1/memories/extract",
+    requireBearerToken(authService),
+    testErrorTrigger(config, [
+      "VALIDATION_ERROR",
+      "PAYLOAD_TOO_LARGE",
+      "AI_OUTPUT_INVALID",
+      "RATE_LIMITED",
+      "AI_PROVIDER_UNAVAILABLE",
+    ]),
+    validateBody("MemoryExtractRequest"),
+    async (request, response) => {
+      try {
+        const result = await memoryExtractionProvider.extract(
+          request.body as JsonObject,
+        );
+        const validation = validateContractSchema("MemoryExtractResponse", result);
+
+        if (!validation.valid) {
+          sendError(response, request.requestId, "AI_OUTPUT_INVALID");
+          return;
+        }
+
+        response.json(result satisfies MemoryExtractResponse);
       } catch (error) {
         void error;
         sendError(response, request.requestId, "AI_PROVIDER_UNAVAILABLE");

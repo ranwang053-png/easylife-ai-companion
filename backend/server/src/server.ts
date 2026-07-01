@@ -40,7 +40,10 @@ await database?.assertOperationsSchema();
 const aiGateway = new AiGateway(config.ai);
 const app = createApp({
   config,
+  companionReplyProvider: aiGateway.companionReplyProvider(),
   emotionProvider: aiGateway.emotionProvider(),
+  emotionJournalProvider: aiGateway.emotionJournalProvider(),
+  memoryExtractionProvider: aiGateway.memoryExtractionProvider(),
   petAvatarProvider: aiGateway.petAvatarProvider(),
   ...(authService === undefined ? {} : { authService }),
 });

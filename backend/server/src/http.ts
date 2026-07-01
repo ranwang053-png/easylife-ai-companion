@@ -108,28 +108,35 @@ export function requestContext(config: AppConfig): RequestHandler {
   };
 }
 
-export const localCors: RequestHandler = (request, response, next) => {
-  const origin = request.header("Origin");
-  if (origin !== undefined && localPreviewOriginPattern.test(origin)) {
-    response.setHeader("Access-Control-Allow-Origin", origin);
-    response.setHeader("Vary", "Origin");
-    response.setHeader(
-      "Access-Control-Allow-Headers",
-      "Authorization, Content-Type, X-Request-Id, X-Easylife-Test-Error, X-Easylife-Test-Sms-Purpose",
-    );
-    response.setHeader(
-      "Access-Control-Allow-Methods",
-      "GET, POST, DELETE, OPTIONS",
-    );
-  }
+export function cors(config: AppConfig): RequestHandler {
+  const allowedOrigins = new Set(config.allowedOrigins);
 
-  if (request.method === "OPTIONS") {
-    response.status(204).send();
-    return;
-  }
+  return (request, response, next) => {
+    const origin = request.header("Origin");
+    if (
+      origin !== undefined &&
+      (localPreviewOriginPattern.test(origin) || allowedOrigins.has(origin))
+    ) {
+      response.setHeader("Access-Control-Allow-Origin", origin);
+      response.setHeader("Vary", "Origin");
+      response.setHeader(
+        "Access-Control-Allow-Headers",
+        "Authorization, Content-Type, X-Request-Id, X-Easylife-Test-Error, X-Easylife-Test-Sms-Purpose",
+      );
+      response.setHeader(
+        "Access-Control-Allow-Methods",
+        "GET, POST, DELETE, OPTIONS",
+      );
+    }
 
-  next();
-};
+    if (request.method === "OPTIONS") {
+      response.status(204).send();
+      return;
+    }
+
+    next();
+  };
+}
 
 export function requireBearerToken(
   authService: AuthService,
