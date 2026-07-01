@@ -61,7 +61,7 @@ services:
     plan: free
     region: oregon
     rootDir: backend/server
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npm run build
     startCommand: npm run migrate:prod && npm start
     healthCheckPath: /v1/health
     autoDeployTrigger: commit
