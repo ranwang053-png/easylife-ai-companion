@@ -1,0 +1,107 @@
+envVarGroups:
+  - name: easylife-api-shared
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: LOG_LEVEL
+        value: info
+      - key: TRUST_PROXY
+        value: true
+      - key: ALLOWED_ORIGINS
+        value: https://ranwang053-png.github.io
+      - key: ENABLE_TEST_TRIGGERS
+        value: false
+      - key: SMS_PROVIDER_MAX_ATTEMPTS
+        value: 3
+      - key: AI_PROVIDER
+        value: fixed
+      - key: ACCESS_TOKEN_KEY_ID
+        value: current
+      - key: ACCESS_TOKEN_PREVIOUS_KEYS
+        value: "{}"
+      - key: ACCESS_TOKEN_ISSUER
+        value: easylife-api
+      - key: ACCESS_TOKEN_AUDIENCE
+        value: easylife-ios
+      - key: ACCOUNT_DELETION_ALLOW_DATABASE_ONLY
+        value: true
+      - key: ACCOUNT_DELETION_LEASE_SECONDS
+        value: 300
+      - key: ACCOUNT_DELETION_POLL_SECONDS
+        value: 5
+      - key: ACCOUNT_DELETION_MAX_BACKOFF_SECONDS
+        value: 3600
+      - key: AUTH_MAINTENANCE_INTERVAL_SECONDS
+        value: 3600
+      - key: LOG_HTTP_BODIES
+        value: false
+      - key: PHONE_LOOKUP_PEPPER
+        generateValue: true
+      - key: PHONE_ENCRYPTION_KEY
+        generateValue: true
+      - key: SMS_CODE_PEPPER
+        generateValue: true
+      - key: DEVICE_PEPPER
+        generateValue: true
+      - key: IP_PEPPER
+        generateValue: true
+      - key: REFRESH_TOKEN_PEPPER
+        generateValue: true
+      - key: DELETION_TOKEN_PEPPER
+        generateValue: true
+      - key: ACCESS_TOKEN_KEY
+        generateValue: true
+
+services:
+  - type: web
+    name: easylife-api
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend/server
+    buildCommand: npm ci && npm run build
+    preDeployCommand: npm run migrate:prod
+    startCommand: npm start
+    healthCheckPath: /v1/health
+    autoDeployTrigger: commit
+    envVars:
+      - fromGroup: easylife-api-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: easylife-postgres
+          property: connectionString
+      - key: SMS_PROVIDER_URL
+        sync: false
+      - key: SMS_PROVIDER_TOKEN
+        sync: false
+
+  - type: worker
+    name: easylife-auth-worker
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend/server
+    buildCommand: npm ci && npm run build
+    startCommand: npm run migrate:prod && npm run start:worker
+    autoDeployTrigger: commit
+    envVars:
+      - fromGroup: easylife-api-shared
+      - key: DATABASE_URL
+        fromDatabase:
+          name: easylife-postgres
+          property: connectionString
+      - key: SMS_PROVIDER_URL
+        sync: false
+      - key: SMS_PROVIDER_TOKEN
+        sync: false
+
+databases:
+  - name: easylife-postgres
+    databaseName: easylife
+    user: easylife
+    plan: free
+    region: oregon
+    postgresMajorVersion: "16"
+    ipAllowList: []
