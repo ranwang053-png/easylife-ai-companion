@@ -31,6 +31,7 @@ const config: AppConfig = {
     "example-access-token-with-at-least-twenty-characters",
     "rotated-access-token-with-at-least-twenty-characters",
   ],
+  portfolioDemoAccessTokens: [],
 };
 const app = createApp({ config });
 
@@ -122,6 +123,50 @@ describe("OpenAPI V1.1.0 fixed backend", () => {
     expect(response.status).toBe(204);
     expect(response.headers["access-control-allow-origin"]).toBe(publicOrigin);
     expect(response.headers["vary"]).toBe("Origin");
+  });
+
+  it("accepts the configured portfolio demo token for protected AI routes", async () => {
+    const demoApp = createApp({
+      config: {
+        ...config,
+        fixedAccessTokens: [],
+        portfolioDemoAccessTokens: [
+          "example-access-token-with-at-least-twenty-characters",
+        ],
+      },
+    });
+
+    const response = await request(demoApp)
+      .post("/v1/companion/reply")
+      .set("X-Request-Id", requestId)
+      .set("Authorization", authorization)
+      .send(contractExample("CompanionReplyRequest"));
+
+    expect(response.status).toBe(200);
+    expectSchema("CompanionReplyResponse", response.body);
+  });
+
+  it("rejects unknown tokens when only portfolio demo auth is configured", async () => {
+    const demoApp = createApp({
+      config: {
+        ...config,
+        fixedAccessTokens: [],
+        portfolioDemoAccessTokens: [
+          "example-access-token-with-at-least-twenty-characters",
+        ],
+      },
+    });
+
+    const response = await request(demoApp)
+      .post("/v1/companion/reply")
+      .set("X-Request-Id", requestId)
+      .set(
+        "Authorization",
+        "Bearer unknown-access-token-with-at-least-twenty-characters",
+      )
+      .send(contractExample("CompanionReplyRequest"));
+
+    expectError(response, 401, "UNAUTHORIZED");
   });
 
   it("returns the fixed SMS challenge", async () => {

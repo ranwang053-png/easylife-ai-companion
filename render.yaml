@@ -13,6 +13,8 @@ envVarGroups:
         value: https://ranwang053-png.github.io
       - key: ENABLE_TEST_TRIGGERS
         value: false
+      - key: PORTFOLIO_DEMO_ACCESS_TOKEN
+        value: example-access-token-with-at-least-twenty-characters
       - key: SMS_PROVIDER_MAX_ATTEMPTS
         value: 3
       - key: AI_PROVIDER

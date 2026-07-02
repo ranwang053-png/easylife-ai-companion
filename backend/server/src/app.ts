@@ -3,6 +3,7 @@ import express, { type RequestHandler, type Response } from "express";
 import type { AppConfig } from "./config.js";
 import { AuthServiceError, type AuthService } from "./auth/auth-service.js";
 import { FixedAuthService } from "./auth/fixed-auth-service.js";
+import { PortfolioDemoAuthService } from "./auth/portfolio-demo-auth-service.js";
 import {
   contractExample,
   contractVersion,
@@ -88,7 +89,15 @@ export function createApp(dependencies: AppDependencies) {
       "A database-backed AuthService is required outside development and test",
     );
   }
-  const authService = dependencies.authService ?? new FixedAuthService(config);
+  const baseAuthService =
+    dependencies.authService ?? new FixedAuthService(config);
+  const authService =
+    config.portfolioDemoAccessTokens.length === 0
+      ? baseAuthService
+      : new PortfolioDemoAuthService(
+          baseAuthService,
+          config.portfolioDemoAccessTokens,
+        );
 
   app.disable("x-powered-by");
   if (config.auth?.trustProxy === true) {

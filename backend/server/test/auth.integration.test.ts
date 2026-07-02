@@ -66,6 +66,7 @@ integration("PostgreSQL authentication", () => {
     allowedOrigins: [],
     enableTestTriggers: false,
     fixedAccessTokens: [],
+    portfolioDemoAccessTokens: [],
   };
   const app = createApp({ config, authService });
   const requestId = "6f2aa37d-e95d-4b52-8df4-0cf3e17e5188";

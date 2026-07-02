@@ -6,6 +6,7 @@ export interface AppConfig {
   allowedOrigins: readonly string[];
   enableTestTriggers: boolean;
   fixedAccessTokens: readonly string[];
+  portfolioDemoAccessTokens: readonly string[];
   ai?: AiConfig;
   auth?: {
     databaseUrl: string;
@@ -116,6 +117,9 @@ export function loadConfig(
       environment.FIXED_ROTATED_ACCESS_TOKEN ??
         "rotated-access-token-with-at-least-twenty-characters",
     ],
+    portfolioDemoAccessTokens: tokenList(
+      environment.PORTFOLIO_DEMO_ACCESS_TOKEN,
+    ),
     ai: loadAiConfig(environment),
   };
 
@@ -456,6 +460,17 @@ function originList(raw: string | undefined): readonly string[] {
       }
       return parsed.origin;
     });
+}
+
+function tokenList(raw: string | undefined): readonly string[] {
+  if (raw === undefined || raw.trim().length === 0) {
+    return [];
+  }
+
+  return raw
+    .split(",")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
 }
 
 function optionalSecret(raw: string | undefined): string | undefined {
