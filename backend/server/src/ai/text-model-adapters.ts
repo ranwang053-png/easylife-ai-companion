@@ -121,13 +121,28 @@ function baseUrlFor(
   providerId: "openai" | "anthropic" | "deepseek" | "doubao",
   config: AiProviderConfig,
 ): URL {
-  if (config.baseUrl !== undefined) return config.baseUrl;
+  if (config.baseUrl !== undefined) {
+    return providerId === "openai"
+      ? normalizeOpenAiCompatibleBaseUrl(config.baseUrl)
+      : config.baseUrl;
+  }
   if (providerId === "openai") return new URL("https://api.openai.com/v1");
   if (providerId === "anthropic") return new URL("https://api.anthropic.com");
   if (providerId === "deepseek") {
     return new URL("https://api.deepseek.com/v1");
   }
   throw new Error("DOUBAO_BASE_URL must be configured when doubao is enabled");
+}
+
+function normalizeOpenAiCompatibleBaseUrl(baseUrl: URL): URL {
+  const normalizedPath = baseUrl.pathname.replace(/\/+$/, "");
+  if (normalizedPath.length > 0 && normalizedPath !== "/") {
+    return baseUrl;
+  }
+
+  const normalized = new URL(baseUrl.toString());
+  normalized.pathname = "/v1";
+  return normalized;
 }
 
 function requiredApiKey(

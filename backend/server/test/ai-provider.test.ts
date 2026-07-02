@@ -170,6 +170,56 @@ describe("AI provider registry", () => {
     expect(providerBody).not.toHaveProperty("temperature");
   });
 
+  it("uses OPENAI_MODEL and appends /v1 for root OpenAI-compatible base URLs", async () => {
+    const captured: Array<{
+      path: string | undefined;
+      body: unknown;
+    }> = [];
+
+    await withJsonServer(async (incoming, response, body) => {
+      captured.push({
+        path: incoming.url,
+        body: JSON.parse(body),
+      });
+      sendJson(response, 200, {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify(emotionResult),
+            },
+          },
+        ],
+      });
+    }, async (baseUrl) => {
+      const config = loadConfig({
+        NODE_ENV: "test",
+        AI_PROVIDER: "gateway",
+        AI_EMOTION_PROVIDER: "openai",
+        OPENAI_API_KEY: "openai-test-key",
+        OPENAI_BASE_URL: baseUrl,
+        OPENAI_MODEL: "aihubmix-test-model",
+      });
+      const gateway = new AiGateway(config.ai);
+      const app = createApp({
+        config,
+        emotionProvider: gateway.emotionProvider(),
+      });
+
+      const providerResponse = await request(app)
+        .post("/v1/emotion/analyze")
+        .set("Authorization", authorization)
+        .send(contractExample("EmotionAnalyzeRequest"));
+
+      expect(providerResponse.status).toBe(200);
+    });
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.path).toBe("/v1/chat/completions");
+    expect(captured[0]?.body).toMatchObject({
+      model: "aihubmix-test-model",
+    });
+  });
+
   it("routes emotion analysis through the Anthropic adapter", async () => {
     const captured: Array<{
       apiKey: string | string[] | undefined;
@@ -289,6 +339,46 @@ describe("AI provider registry", () => {
       );
       expect(captured[0]?.body).not.toContain("Storage And Privacy");
     });
+  });
+
+  it("appends /v1 for root OpenAI-compatible image base URLs", async () => {
+    const captured: Array<{ path: string | undefined }> = [];
+
+    await withJsonServer(async (incoming, response) => {
+      captured.push({ path: incoming.url });
+      sendJson(response, 200, {
+        data: [
+          {
+            b64_json:
+              "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=",
+          },
+        ],
+      });
+    }, async (baseUrl) => {
+      const config = loadConfig({
+        NODE_ENV: "test",
+        AI_PROVIDER: "gateway",
+        AI_PET_AVATAR_PROVIDER: "openai",
+        AI_PET_AVATAR_MODEL: "gpt-image-1",
+        OPENAI_API_KEY: "openai-test-key",
+        OPENAI_BASE_URL: baseUrl,
+      });
+      const gateway = new AiGateway(config.ai);
+      const app = createApp({
+        config,
+        petAvatarProvider: gateway.petAvatarProvider(),
+      });
+
+      const providerResponse = await request(app)
+        .post("/v1/pet-avatar/generate")
+        .set("Authorization", authorization)
+        .send(contractExample("PetAvatarGenerateRequest"));
+
+      expect(providerResponse.status).toBe(200);
+    });
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.path).toBe("/v1/images/edits");
   });
 
   it("passes configured pet avatar style reference images to the image adapter", async () => {

@@ -66,7 +66,7 @@ envVarGroups:
       - key: AI_FOOD_IMAGE_ENHANCEMENT
         value: light
       - key: OPENAI_BASE_URL
-        value: https://api.openai.com/v1
+        value: https://aihubmix.com
       - key: ANTHROPIC_BASE_URL
         value: https://api.anthropic.com
       - key: DEEPSEEK_BASE_URL
@@ -132,6 +132,8 @@ services:
       - key: SMS_PROVIDER_TOKEN
         sync: false
       - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false

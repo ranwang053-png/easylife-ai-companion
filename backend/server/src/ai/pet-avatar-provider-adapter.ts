@@ -282,8 +282,21 @@ function visibleAlphaBounds(png: PNG): {
 }
 
 function baseUrlFor(config: AiProviderConfig): URL {
-  if (config.baseUrl !== undefined) return config.baseUrl;
+  if (config.baseUrl !== undefined) {
+    return normalizeOpenAiCompatibleBaseUrl(config.baseUrl);
+  }
   return new URL("https://api.openai.com/v1");
+}
+
+function normalizeOpenAiCompatibleBaseUrl(baseUrl: URL): URL {
+  const normalizedPath = baseUrl.pathname.replace(/\/+$/, "");
+  if (normalizedPath.length > 0 && normalizedPath !== "/") {
+    return baseUrl;
+  }
+
+  const normalized = new URL(baseUrl.toString());
+  normalized.pathname = "/v1";
+  return normalized;
 }
 
 function requiredApiKey(config: AiProviderConfig): string {

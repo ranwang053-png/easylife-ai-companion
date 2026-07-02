@@ -372,13 +372,21 @@ function capability(
     fallbackModel: string;
   },
 ): AiCapabilityConfig {
+  const provider = aiProvider(
+    environment[options.providerName],
+    options.providerName,
+    options.fallbackProvider,
+  );
+  const genericOpenAiModel =
+    provider === "openai" && options.modelName !== "AI_PET_AVATAR_MODEL"
+      ? environment.OPENAI_MODEL
+      : undefined;
   return {
-    provider: aiProvider(
-      environment[options.providerName],
-      options.providerName,
-      options.fallbackProvider,
+    provider,
+    model: nonEmpty(
+      genericOpenAiModel ?? environment[options.modelName],
+      options.fallbackModel,
     ),
-    model: nonEmpty(environment[options.modelName], options.fallbackModel),
   };
 }
 

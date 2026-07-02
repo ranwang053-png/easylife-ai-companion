@@ -56,6 +56,10 @@ Android 打包环境暂缓，不作为当前内测上线阻塞项。
 - 当前 AI 能力通过 `AgentService` 统一调用：未配置后端时使用 `MockAgentService`；
   配置 `EASYLIFE_API_BASE_URL` 后，陪伴回复、情绪日记整理、长期记忆提炼、旧情绪分析
   和伙伴形象生成优先走自建后端，失败时按本地优先策略回退到本地示例能力。
+- 后端 OpenAI-compatible provider 支持 `OPENAI_API_KEY`、`OPENAI_BASE_URL` 和
+  `OPENAI_MODEL`；`OPENAI_BASE_URL` 未配置时默认使用 OpenAI 官方 `/v1` 地址，配置为
+  `https://aihubmix.com` 这类根地址时会自动补 `/v1`。`OPENAI_MODEL` 作为 OpenAI
+  文本能力的统一模型覆盖项，不影响图像生成模型。
 - 生产入口使用 `shared_preferences` 保存用户、宠物、情绪、饮食、体重和引导状态；
   Widget 测试继续使用内存实现隔离数据。
 - 生产认证使用 `HttpAuthService` 对接 `EASYLIFE_API_BASE_URL`，访问令牌和刷新令牌
