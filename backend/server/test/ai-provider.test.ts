@@ -125,6 +125,51 @@ describe("AI provider registry", () => {
     },
   );
 
+  it("uses GPT-5 compatible token parameters for OpenAI text models", async () => {
+    const captured: Array<{ body: unknown }> = [];
+
+    await withJsonServer(async (_incoming, response, body) => {
+      captured.push({ body: JSON.parse(body) });
+      sendJson(response, 200, {
+        choices: [
+          {
+            message: {
+              content: JSON.stringify(emotionResult),
+            },
+          },
+        ],
+      });
+    }, async (baseUrl) => {
+      const config = loadConfig({
+        NODE_ENV: "test",
+        AI_PROVIDER: "gateway",
+        AI_EMOTION_PROVIDER: "openai",
+        AI_EMOTION_MODEL: "gpt-5.5",
+        OPENAI_API_KEY: "openai-test-key",
+        OPENAI_BASE_URL: `${baseUrl}/v1`,
+      });
+      const gateway = new AiGateway(config.ai);
+      const app = createApp({
+        config,
+        emotionProvider: gateway.emotionProvider(),
+      });
+
+      const providerResponse = await request(app)
+        .post("/v1/emotion/analyze")
+        .set("Authorization", authorization)
+        .send(contractExample("EmotionAnalyzeRequest"));
+
+      expect(providerResponse.status).toBe(200);
+    });
+
+    expect(captured).toHaveLength(1);
+    const providerBody = captured[0]?.body as Record<string, unknown>;
+    expect(providerBody.model).toBe("gpt-5.5");
+    expect(providerBody.max_completion_tokens).toBe(1000);
+    expect(providerBody).not.toHaveProperty("max_tokens");
+    expect(providerBody).not.toHaveProperty("temperature");
+  });
+
   it("routes emotion analysis through the Anthropic adapter", async () => {
     const captured: Array<{
       apiKey: string | string[] | undefined;

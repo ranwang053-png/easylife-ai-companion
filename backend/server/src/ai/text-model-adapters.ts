@@ -44,19 +44,7 @@ class OpenAiCompatibleTextAdapter implements TextModelAdapter {
     const response = await postJson(endpoint, {
       Authorization: `Bearer ${requiredApiKey(this.providerId, this.config)}`,
       "Content-Type": "application/json",
-    }, {
-      model: request.model,
-      messages: [
-        { role: "system", content: request.systemPrompt },
-        {
-          role: "user",
-          content: JSON.stringify(request.userPayload),
-        },
-      ],
-      response_format: { type: "json_object" },
-      temperature: request.temperature ?? 0.3,
-      max_tokens: request.maxTokens ?? 1200,
-    });
+    }, openAiCompatibleBody(this.providerId, request));
 
     const content = readOpenAiContent(response);
     return extractJsonObject(content);
@@ -91,6 +79,42 @@ class AnthropicTextAdapter implements TextModelAdapter {
     const content = readAnthropicContent(response);
     return extractJsonObject(content);
   }
+}
+
+function openAiCompatibleBody(
+  providerId: "openai" | "deepseek" | "doubao",
+  request: TextCompletionRequest,
+): JsonObject {
+  const base = {
+    model: request.model,
+    messages: [
+      { role: "system", content: request.systemPrompt },
+      {
+        role: "user",
+        content: JSON.stringify(request.userPayload),
+      },
+    ],
+    response_format: { type: "json_object" },
+  };
+  if (providerId === "openai" && usesOpenAiReasoningParams(request.model)) {
+    return {
+      ...base,
+      max_completion_tokens: request.maxTokens ?? 1200,
+    };
+  }
+  return {
+    ...base,
+    temperature: request.temperature ?? 0.3,
+    max_tokens: request.maxTokens ?? 1200,
+  };
+}
+
+function usesOpenAiReasoningParams(model: string): boolean {
+  const normalized = model.toLowerCase();
+  return (
+    /^gpt-5(?:[.-]|$)/.test(normalized) ||
+    /^o[134](?:[.-]|$)/.test(normalized)
+  );
 }
 
 function baseUrlFor(
