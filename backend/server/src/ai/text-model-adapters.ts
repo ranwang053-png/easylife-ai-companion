@@ -163,7 +163,10 @@ async function postJson(
       signal: controller.signal,
     });
     if (!response.ok) {
-      throw new Error(`AI provider returned HTTP ${response.status}`);
+      const body = await response.text();
+      throw new Error(
+        `AI provider returned HTTP ${response.status}: ${body.slice(0, 500)}`,
+      );
     }
     const text = await response.text();
     const parsed: unknown = JSON.parse(text);

@@ -308,7 +308,12 @@ export function createApp(dependencies: AppDependencies) {
 
         response.json(result satisfies CompanionReplyResponse);
       } catch (error) {
-        void error;
+        logProviderError(
+          config,
+          "companion_reply_provider_error",
+          request.requestId,
+          error,
+        );
         sendError(response, request.requestId, "AI_PROVIDER_UNAVAILABLE");
       }
     },
@@ -474,5 +479,21 @@ function sendAuthError(
     response,
     requestId,
     error instanceof AuthServiceError ? error.code : fallback,
+  );
+}
+
+function logProviderError(
+  config: AppConfig,
+  event: string,
+  requestId: string,
+  error: unknown,
+): void {
+  if (config.logLevel === "silent") return;
+  console.error(
+    JSON.stringify({
+      event,
+      requestId,
+      error: error instanceof Error ? error.message : "unknown provider error",
+    }),
   );
 }
