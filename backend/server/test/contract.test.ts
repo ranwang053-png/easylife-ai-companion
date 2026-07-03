@@ -118,10 +118,16 @@ describe("OpenAPI V1.1.0 fixed backend", () => {
       .options("/v1/companion/reply")
       .set("Origin", publicOrigin)
       .set("Access-Control-Request-Method", "POST")
-      .set("Access-Control-Request-Headers", "Authorization, Content-Type");
+      .set(
+        "Access-Control-Request-Headers",
+        "Authorization, Content-Type, Idempotency-Key",
+      );
 
     expect(response.status).toBe(204);
     expect(response.headers["access-control-allow-origin"]).toBe(publicOrigin);
+    expect(response.headers["access-control-allow-headers"]).toContain(
+      "Idempotency-Key",
+    );
     expect(response.headers["vary"]).toBe("Origin");
   });
 

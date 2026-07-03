@@ -121,7 +121,7 @@ export function cors(config: AppConfig): RequestHandler {
       response.setHeader("Vary", "Origin");
       response.setHeader(
         "Access-Control-Allow-Headers",
-        "Authorization, Content-Type, X-Request-Id, X-Easylife-Test-Error, X-Easylife-Test-Sms-Purpose",
+        "Authorization, Content-Type, Idempotency-Key, X-Request-Id, X-Easylife-Test-Error, X-Easylife-Test-Sms-Purpose",
       );
       response.setHeader(
         "Access-Control-Allow-Methods",
