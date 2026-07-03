@@ -4,6 +4,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 import '../models/app_models.dart';
 import '../services/agent_service.dart';
 import '../services/journal_repository.dart';
+import '../services/long_term_memory_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/companion_avatar.dart';
@@ -132,28 +133,33 @@ class CompanionPageState extends State<CompanionPage> {
       profile,
       companion: widget.petProfile,
     );
-    final memoryCandidates =
-        await widget.agentService.extractLongTermMemoryCandidates(
-      sourceType: 'emotion_journal',
-      sourceContent: {
-        'recap': journalSummary.recap,
-        'emotionTags': journalSummary.emotionTags,
-        'trigger': journalSummary.trigger,
-        'insight': journalSummary.insight,
-        'nextActions': journalSummary.nextActions,
-        'closingWords': journalSummary.closingWords,
-      },
-      existingMemories: profile.memoryNotes,
-    );
+    final memoryCandidates = profile.aiMemoryEnabled
+        ? await widget.agentService.extractLongTermMemoryCandidates(
+            sourceType: 'emotion_journal',
+            sourceContent: {
+              'recap': journalSummary.recap,
+              'emotionTags': journalSummary.emotionTags,
+              'trigger': journalSummary.trigger,
+              'insight': journalSummary.insight,
+              'nextActions': journalSummary.nextActions,
+              'closingWords': journalSummary.closingWords,
+            },
+            existingMemories: profile.memoryNotes,
+          )
+        : const <LongTermMemoryCandidate>[];
     final newMemories = memoryCandidates
-        .map((candidate) => candidate.content)
-        .where((content) => content.trim().isNotEmpty)
-        .where((content) => !profile.memoryNotes.contains(content))
+        .map(
+          (candidate) => formatLongTermMemoryCandidate(
+            type: candidate.type,
+            content: candidate.content,
+          ),
+        )
+        .whereType<String>()
         .toList(growable: false);
-    final memories = [...profile.memoryNotes, ...newMemories];
-    final trimmedMemories = memories.length > 12
-        ? memories.sublist(memories.length - 12)
-        : memories;
+    final memories = profile.aiMemoryEnabled
+        ? organizeLongTermMemoryNotes([...profile.memoryNotes, ...newMemories])
+        : profile.memoryNotes;
+    final updatedProfile = profile.copyWith(memoryNotes: memories);
     final entry = PetMoodLog(
       id: DateTime.now().microsecondsSinceEpoch.toString(),
       time: DateTime.now(),
@@ -180,10 +186,9 @@ class CompanionPageState extends State<CompanionPage> {
     });
     await Future.wait([
       widget.journalRepository.saveMoodLogs(_history),
-      widget.userProfileService.saveProfile(
-        profile.copyWith(memoryNotes: trimmedMemories),
-      ),
+      widget.userProfileService.saveProfile(updatedProfile),
     ]);
+    await widget.agentService.updateUserProfile(updatedProfile);
     if (!mounted) return;
     ScaffoldMessenger.of(
       context,

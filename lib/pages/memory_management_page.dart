@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/user_profile.dart';
 import '../services/agent_service.dart';
+import '../services/long_term_memory_service.dart';
 import '../services/user_profile_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/page_header.dart';
@@ -25,7 +26,6 @@ class MemoryManagementPage extends StatefulWidget {
 }
 
 class _MemoryManagementPageState extends State<MemoryManagementPage> {
-  static const _maximumMemories = 12;
   static const _maximumMemoryLength = 60;
 
   late UserProfile _profile;
@@ -39,7 +39,9 @@ class _MemoryManagementPageState extends State<MemoryManagementPage> {
 
   Future<void> _persist(List<String> memories) async {
     if (_isSaving) return;
-    final updated = _profile.copyWith(memoryNotes: memories);
+    final updated = _profile.copyWith(
+      memoryNotes: organizeLongTermMemoryNotes(memories),
+    );
     setState(() {
       _profile = updated;
       _isSaving = true;
@@ -54,46 +56,82 @@ class _MemoryManagementPageState extends State<MemoryManagementPage> {
     required String title,
     String initialValue = '',
   }) {
-    var input = initialValue;
+    final initialView =
+        initialValue.isEmpty ? null : parseLongTermMemoryView(initialValue);
+    var selectedCategory =
+        initialView?.isCategorized == true ? initialView!.category : '沟通偏好';
+    var input = initialView?.isCategorized == true
+        ? initialView!.content
+        : initialValue;
     return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: TextFormField(
-          key: const Key('memory-editor-field'),
-          initialValue: initialValue,
-          autofocus: true,
-          minLines: 2,
-          maxLines: 4,
-          maxLength: _maximumMemoryLength,
-          onChanged: (value) => input = value,
-          decoration: const InputDecoration(hintText: '例如：我压力大时更希望先被倾听'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(title),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                key: const Key('memory-category-field'),
+                initialValue: selectedCategory,
+                items: longTermMemoryCategories
+                    .where((category) => category != '画像摘要')
+                    .map(
+                      (category) => DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setDialogState(() => selectedCategory = value);
+                },
+                decoration: const InputDecoration(labelText: '记忆分类'),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                key: const Key('memory-editor-field'),
+                initialValue: input,
+                autofocus: true,
+                minLines: 2,
+                maxLines: 4,
+                maxLength: _maximumMemoryLength,
+                onChanged: (value) => input = value,
+                decoration: const InputDecoration(
+                  hintText: '例如：压力大时更希望先被倾听',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              key: const Key('confirm-memory-button'),
+              onPressed: () {
+                final value = input.trim();
+                if (value.isNotEmpty) {
+                  Navigator.pop(
+                    context,
+                    formatLongTermMemoryNote(
+                      category: selectedCategory,
+                      content: value,
+                    ),
+                  );
+                }
+              },
+              child: const Text('保存'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
-          FilledButton(
-            key: const Key('confirm-memory-button'),
-            onPressed: () {
-              final value = input.trim();
-              if (value.isNotEmpty) Navigator.pop(context, value);
-            },
-            child: const Text('保存'),
-          ),
-        ],
       ),
     );
   }
 
   Future<void> _addMemory() async {
-    if (_profile.memoryNotes.length >= _maximumMemories) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('最多保留 12 条长期记忆，请先整理已有内容')));
-      return;
-    }
     final value = await _showMemoryEditor(title: '添加长期记忆');
     if (value == null || !mounted) return;
     final memories = [
@@ -199,7 +237,7 @@ class _MemoryManagementPageState extends State<MemoryManagementPage> {
               borderColor: AppColors.outlineSoft,
               child: Text(
                 '后续陪伴、饮食建议和每日运势只会调用你允许保留的记忆。'
-                '最多保留 $_maximumMemories 条，你随时可以改写或删除。',
+                '当内容变多时，easy 会按分类自动归纳，避免重复和散乱。',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: AppColors.secondaryInk,
                       height: 1.55,
@@ -242,7 +280,7 @@ class _MemoryManagementPageState extends State<MemoryManagementPage> {
                           final index = memories.length - 1 - reversedIndex;
                           return _MemoryTile(
                             index: index,
-                            text: _memoryDisplayText(memories[index]),
+                            memory: parseLongTermMemoryView(memories[index]),
                             enabled: !_isSaving,
                             onEdit: () => _editMemory(index),
                             onDelete: () => _deleteMemory(index),
@@ -263,23 +301,20 @@ class _MemoryManagementPageState extends State<MemoryManagementPage> {
 }
 
 String _memoryDisplayText(String memory) {
-  final separator = memory.contains('：') ? '：' : ':';
-  final separatorIndex = memory.indexOf(separator);
-  if (separatorIndex <= 0) return memory;
-  return memory.substring(0, separatorIndex).trim();
+  return parseLongTermMemoryView(memory).title;
 }
 
 class _MemoryTile extends StatelessWidget {
   const _MemoryTile({
     required this.index,
-    required this.text,
+    required this.memory,
     required this.enabled,
     required this.onEdit,
     required this.onDelete,
   });
 
   final int index;
-  final String text;
+  final LongTermMemoryView memory;
   final bool enabled;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -296,8 +331,8 @@ class _MemoryTile extends StatelessWidget {
           color: AppColors.primaryDark,
         ),
       ),
-      title: Text(text),
-      subtitle: const Text('整理后的长期认知'),
+      title: Text(memory.title),
+      subtitle: Text(memory.subtitle),
       trailing: PopupMenuButton<String>(
         enabled: enabled,
         tooltip: '管理这条记忆',

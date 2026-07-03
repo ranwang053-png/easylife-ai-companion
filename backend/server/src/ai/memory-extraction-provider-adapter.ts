@@ -7,9 +7,7 @@ const memoryPrompt = loadPrompt(
   "backend/prompts/long_term_memory_extraction.v1.md",
 );
 
-export class TextModelMemoryExtractionProvider
-  implements MemoryExtractionProvider
-{
+export class TextModelMemoryExtractionProvider implements MemoryExtractionProvider {
   constructor(
     private readonly adapter: TextModelAdapter,
     private readonly model: string,
@@ -39,7 +37,9 @@ export class TextModelMemoryExtractionProvider
   }
 }
 
-function memoryCandidate(value: unknown): MemoryExtractResponse["memoryCandidates"][number] {
+function memoryCandidate(
+  value: unknown,
+): MemoryExtractResponse["memoryCandidates"][number] {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Memory candidate is not an object");
   }
@@ -59,14 +59,24 @@ function stringValue(value: unknown): string {
 function memoryType(
   value: unknown,
 ): MemoryExtractResponse["memoryCandidates"][number]["type"] {
-  if (
-    value === "preference" ||
-    value === "pattern" ||
-    value === "goal" ||
-    value === "boundary" ||
-    value === "context"
-  ) {
-    return value;
+  switch (value) {
+    case "emotional_sensitivity":
+    case "coping_strategy":
+    case "current_focus":
+    case "communication_preference":
+    case "lifestyle_habit":
+    case "health_context":
+    case "work_study_context":
+    case "boundary":
+      return value;
+    case "preference":
+      return "communication_preference";
+    case "pattern":
+      return "emotional_sensitivity";
+    case "goal":
+      return "current_focus";
+    case "context":
+      return "work_study_context";
   }
   throw new Error("Memory candidate contains an invalid type");
 }

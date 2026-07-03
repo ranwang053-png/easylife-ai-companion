@@ -76,7 +76,8 @@ export function createApp(dependencies: AppDependencies) {
   const emotionJournalProvider =
     dependencies.emotionJournalProvider ?? new FixedEmotionJournalProvider();
   const memoryExtractionProvider =
-    dependencies.memoryExtractionProvider ?? new FixedMemoryExtractionProvider();
+    dependencies.memoryExtractionProvider ??
+    new FixedMemoryExtractionProvider();
   const petAvatarProvider =
     dependencies.petAvatarProvider ?? new FixedPetAvatarProvider();
   const { config } = dependencies;
@@ -381,7 +382,10 @@ export function createApp(dependencies: AppDependencies) {
         const result = await memoryExtractionProvider.extract(
           request.body as JsonObject,
         );
-        const validation = validateContractSchema("MemoryExtractResponse", result);
+        const validation = validateContractSchema(
+          "MemoryExtractResponse",
+          result,
+        );
 
         if (!validation.valid) {
           sendError(response, request.requestId, "AI_OUTPUT_INVALID");

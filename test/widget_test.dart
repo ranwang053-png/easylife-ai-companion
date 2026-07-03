@@ -1471,10 +1471,11 @@ void main() {
     await tester.tap(find.byKey(const Key('confirm-memory-button')));
     await tester.pumpAndSettle();
 
+    expect(find.text('沟通偏好'), findsWidgets);
     expect(find.text('饮食建议希望简单易执行'), findsOneWidget);
     expect((await userProfileService.loadProfile()).memoryNotes, [
       '压力大时希望先被倾听',
-      '饮食建议希望简单易执行',
+      '沟通偏好：饮食建议希望简单易执行',
     ]);
 
     final addedMemory = find.byKey(const ValueKey('memory-item-1'));
@@ -1512,6 +1513,44 @@ void main() {
     expect((await userProfileService.loadProfile()).memoryNotes, [
       '压力大时希望先被倾听',
     ]);
+  });
+
+  testWidgets('long-term memories are compacted instead of blocking over limit',
+      (tester) async {
+    final store = MemoryLocalStore();
+    final userProfileService = LocalUserProfileService(store);
+    final initialProfile = MockUserProfileService.currentProfile.copyWith(
+      memoryNotes: [
+        for (var index = 0; index < 12; index++) '近期关注：用户最近准备作品集阶段 $index',
+      ],
+    );
+    await userProfileService.saveProfile(initialProfile);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MemoryManagementPage(
+          initialProfile: initialProfile,
+          agentService: const MockAgentService(),
+          userProfileService: userProfileService,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('add-memory-button')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('memory-editor-field')),
+      '压力大时希望先被倾听',
+    );
+    await tester.tap(find.byKey(const Key('confirm-memory-button')));
+    await tester.pumpAndSettle();
+
+    final saved = (await userProfileService.loadProfile()).memoryNotes;
+    expect(saved.length, lessThanOrEqualTo(12));
+    expect(saved.any((memory) => memory.startsWith('近期关注：')), isTrue);
+    expect(saved.any((memory) => memory.startsWith('沟通偏好：')), isTrue);
+    expect(find.text('最多保留 12 条长期记忆，请先整理已有内容'), findsNothing);
   });
 
   testWidgets('long-term memory cards hide original journal text', (

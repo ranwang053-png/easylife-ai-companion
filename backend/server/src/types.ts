@@ -38,11 +38,7 @@ export interface CompanionReplyResponse {
   emotionLabel: string | null;
   riskLevel: "none" | "concern" | "crisis";
   serviceSuggestion:
-    | "breathing"
-    | "emotion_card"
-    | "save_journal"
-    | "self_care"
-    | null;
+    "breathing" | "emotion_card" | "save_journal" | "self_care" | null;
 }
 
 export interface EmotionJournalSummaryResponse {
@@ -56,7 +52,15 @@ export interface EmotionJournalSummaryResponse {
 
 export interface MemoryExtractResponse {
   memoryCandidates: Array<{
-    type: "preference" | "pattern" | "goal" | "boundary" | "context";
+    type:
+      | "emotional_sensitivity"
+      | "coping_strategy"
+      | "current_focus"
+      | "communication_preference"
+      | "lifestyle_habit"
+      | "health_context"
+      | "work_study_context"
+      | "boundary";
     content: string;
     usage: "companion" | "diet" | "fortune" | "profile";
   }>;

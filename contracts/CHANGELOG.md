@@ -2,6 +2,24 @@
 
 本文件记录前后端接口契约变化，不记录 Flutter 或后端内部实现变化。
 
+## 1.1.1 - 2026-07-03 compatible refinement
+
+### Changed
+
+- `POST /v1/memories/extract` 的长期记忆候选类型从通用
+  `preference/pattern/goal/boundary/context` 细化为
+  `emotional_sensitivity`、`coping_strategy`、`current_focus`、
+  `communication_preference`、`lifestyle_habit`、`health_context`、
+  `work_study_context` 和 `boundary`。
+- 长期记忆候选每条内容上限从 30 字放宽到 80 字，单次最多返回 3 条。
+- `existingMemories` 请求上下文上限从 12 条放宽到 24 条；客户端仍可传入压缩后的上下文。
+
+### Decisions
+
+- 长期记忆不保存完整情绪日记，只保存以后陪伴、饮食建议或个性化回应可复用的信息。
+- 只有泛泛情绪、缺少原因或偏好的内容不应生成长期记忆候选。
+- 健康相关长期记忆只能表达为用户自述或提到的线索，不能写成医学诊断。
+
 ## 1.1.0 - 2026-07-01 compatible additions
 
 ### Added

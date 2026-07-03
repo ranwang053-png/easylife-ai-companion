@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 import '../models/app_models.dart';
+import 'long_term_memory_service.dart';
 import 'user_profile_service.dart';
 
 /// Unified AI boundary for the Flutter client.
@@ -206,7 +207,7 @@ class HttpAgentService implements AgentService {
                 'nickname': profile.nickname,
                 'goals': profile.goals.take(10).toList(),
                 'personalTags': profile.personalTags.take(20).toList(),
-                'memoryNotes': profile.memoryNotes.reversed.take(12).toList(),
+                'memoryNotes': memoryNotesForAiContext(profile.memoryNotes),
                 'petReminderStyle': profile.petReminderStyle,
                 if (companion != null)
                   'companion': _companionContext(companion),
@@ -433,7 +434,7 @@ class HttpAgentService implements AgentService {
             body: jsonEncode({
               'sourceType': sourceType,
               'sourceContent': sourceContent,
-              'existingMemories': existingMemories.reversed.take(12).toList(),
+              'existingMemories': memoryNotesForAiContext(existingMemories),
               'client': _clientContext(),
             }),
           )
@@ -683,7 +684,7 @@ Map<String, Object> _emotionContext(
       'nickname': profile.nickname,
       'goals': profile.goals.take(10).toList(),
       'personalTags': profile.personalTags.take(20).toList(),
-      'memoryNotes': profile.memoryNotes.reversed.take(12).toList(),
+      'memoryNotes': memoryNotesForAiContext(profile.memoryNotes),
       'petReminderStyle': profile.petReminderStyle,
       if (companion != null) 'companion': _companionContext(companion),
     };
@@ -726,9 +727,9 @@ class MockAgentService implements AgentService {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 450));
     final normalized = text.toLowerCase();
-    final recentPatterns = profile.memoryNotes.reversed
+    final recentPatterns = memoryNotesForAiContext(profile.memoryNotes)
         .take(3)
-        .map((note) => note.split('：').first)
+        .map((note) => parseLongTermMemoryView(note).title)
         .toSet()
         .join('、');
     String withMemory(String content) => recentPatterns.isEmpty
@@ -872,23 +873,45 @@ class MockAgentService implements AgentService {
     required List<String> existingMemories,
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 180));
-    final tags = (sourceContent['emotionTags'] as List?)
-            ?.whereType<String>()
-            .take(2)
-            .join('、') ??
-        '';
-    if (tags.isEmpty) return const [];
-    final content = '$tags时更适合先被倾听';
-    if (existingMemories.any((memory) => memory.contains(content))) {
+    final combined = sourceContent.values.expand((value) {
+      if (value is Iterable) return value.whereType<Object>();
+      return [if (value != null) value];
+    }).join('；');
+
+    LongTermMemoryCandidate? candidate;
+    if (combined.contains('胃炎') || combined.contains('胃痛')) {
+      candidate = const LongTermMemoryCandidate(
+        type: 'health_context',
+        content: '用户提到自己有胃炎/胃痛，饮食建议需要更温和',
+        usage: 'diet',
+      );
+    } else if (combined.contains('实习') ||
+        combined.contains('工作') ||
+        combined.contains('面试') ||
+        combined.contains('作品集')) {
+      candidate = const LongTermMemoryCandidate(
+        type: 'current_focus',
+        content: '用户近期容易因实习、工作或作品集感到不确定',
+        usage: 'companion',
+      );
+    } else if (combined.contains('倾听') || combined.contains('建议')) {
+      candidate = const LongTermMemoryCandidate(
+        type: 'communication_preference',
+        content: '压力大时更希望先被倾听，再慢慢梳理下一步',
+        usage: 'companion',
+      );
+    }
+
+    if (candidate == null) return const [];
+    final formatted = formatLongTermMemoryCandidate(
+      type: candidate.type,
+      content: candidate.content,
+    );
+    if (formatted == null ||
+        existingMemories.any((memory) => memory.contains(candidate!.content))) {
       return const [];
     }
-    return [
-      LongTermMemoryCandidate(
-        type: 'preference',
-        content: content.length > 30 ? content.substring(0, 30) : content,
-        usage: 'companion',
-      ),
-    ];
+    return [candidate];
   }
 
   @override

@@ -18,7 +18,7 @@ Current prompts:
 - `diet_review.v1.md`: 只生成上一期、本期的语言总结和下一期建议；统计值全部由后端计算。
 - `emotion_journal_summary.v1.md`: 用户主动保存后，将完整陪伴对话整理成结构化情绪日记卡片。
 - `food_vision_recognition.v1.md`: 只返回可见食物、估计份量和单项置信度。
-- `long_term_memory_extraction.v1.md`: 每次最多提炼两条低敏、稳定、可复用的长期记忆候选。
+- `long_term_memory_extraction.v1.md`: 每次最多提炼三条低敏、稳定、可复用且带分类的长期记忆候选；泛泛情绪不入库。
 - `nutrition_analysis.v1.md`: 按食物返回单值热量和营养估算；总计、复核状态和贴纸展示由代码生成。
 - `pet_avatar_generation.v1.md`: 伙伴形象生成。
 - `user_profile_summary.v1.md`: 后端规则拼装规范，不进行实时模型调用。

@@ -1496,7 +1496,7 @@ components:
           description: 已经由用户确认保存的结构化内容，不传手机号、验证码或完整未确认对话。
         existingMemories:
           type: array
-          maxItems: 12
+          maxItems: 24
           items:
             type: string
             minLength: 1
@@ -1514,15 +1514,18 @@ components:
         type:
           type: string
           enum:
-            - preference
-            - pattern
-            - goal
+            - emotional_sensitivity
+            - coping_strategy
+            - current_focus
+            - communication_preference
+            - lifestyle_habit
+            - health_context
+            - work_study_context
             - boundary
-            - context
         content:
           type: string
           minLength: 1
-          maxLength: 30
+          maxLength: 80
         usage:
           type: string
           enum:
@@ -1538,7 +1541,7 @@ components:
       properties:
         memoryCandidates:
           type: array
-          maxItems: 2
+          maxItems: 3
           items:
             $ref: "#/components/schemas/MemoryCandidate"
     PetAvatarGenerateRequest:
@@ -2244,13 +2247,14 @@ components:
       value:
         sourceType: emotion_journal
         sourceContent:
-          recap: 今天聊到工作任务很多，身体疲惫，同时担心自己做得不够好。
+          recap: 今天聊到最近在准备作品集和面试，身体疲惫，同时担心自己做得不够好。
           emotionTags:
             - 疲惫
             - 压力
+          trigger: 最近在准备作品集和面试，对实习选择有些不确定。
           insight: 用户低落时更希望先被倾听，再慢慢梳理下一步。
         existingMemories:
-          - 低落时更希望先被倾听
+          - 沟通偏好：低落时更希望先被倾听
         client:
           platform: ios
           appVersion: 0.3.0+3
@@ -2259,8 +2263,8 @@ components:
       summary: 低敏长期记忆候选
       value:
         memoryCandidates:
-          - type: boundary
-            content: 累的时候不喜欢被催促
+          - type: current_focus
+            content: 用户近期在准备作品集和面试，对实习选择有些不确定
             usage: companion
     PetAvatarGenerateRequest:
       summary: 上传照片生成伙伴形象
