@@ -15,6 +15,7 @@ import { createApp } from "../src/app.js";
 import { AiGateway } from "../src/ai/ai-gateway.js";
 import { loadConfig } from "../src/config.js";
 import { contractExample, validateContractSchema } from "../src/contract.js";
+import type { JsonObject } from "../src/types.js";
 
 const authorization =
   "Bearer example-access-token-with-at-least-twenty-characters";
@@ -407,6 +408,81 @@ describe("AI provider registry", () => {
 
     expect(captured).toHaveLength(1);
     expect(captured[0]?.path).toBe("/v1/images/edits");
+  });
+
+  it("routes Gemini image pet avatar generation through chat completions", async () => {
+    const generatedImage =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
+    const captured: Array<{
+      authorization: string | undefined;
+      body: JsonObject;
+      contentType: string | undefined;
+      path: string | undefined;
+    }> = [];
+
+    await withJsonServer(
+      async (incoming, response, body) => {
+        captured.push({
+          authorization: incoming.headers.authorization,
+          body: JSON.parse(body) as JsonObject,
+          contentType: incoming.headers["content-type"],
+          path: incoming.url,
+        });
+        sendJson(response, 200, {
+          choices: [
+            {
+              message: {
+                role: "assistant",
+                content: "",
+                multi_mod_content: [
+                  {
+                    inlineData: {
+                      data: generatedImage,
+                      mimeType: "image/png",
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        });
+      },
+      async (baseUrl) => {
+        const config = loadConfig({
+          NODE_ENV: "test",
+          AI_PROVIDER: "gateway",
+          AI_PET_AVATAR_PROVIDER: "openai",
+          AI_PET_AVATAR_MODEL: "gemini-2.5-flash-image",
+          AI_PET_AVATAR_API_KEY: "aihubmix-image-key",
+          AI_PET_AVATAR_BASE_URL: baseUrl,
+        });
+        const gateway = new AiGateway(config.ai);
+        const app = createApp({
+          config,
+          petAvatarProvider: gateway.petAvatarProvider(),
+        });
+
+        const providerResponse = await request(app)
+          .post("/v1/pet-avatar/generate")
+          .set("Authorization", authorization)
+          .send(contractExample("PetAvatarGenerateRequest"));
+
+        expect(providerResponse.status).toBe(200);
+        expect(providerResponse.body.generatedAvatarUrl).toBe(
+          `data:image/png;base64,${generatedImage}`,
+        );
+      },
+    );
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]?.authorization).toBe("Bearer aihubmix-image-key");
+    expect(captured[0]?.path).toBe("/v1/chat/completions");
+    expect(captured[0]?.contentType).toContain("application/json");
+    expect(captured[0]?.body).toMatchObject({
+      model: "gemini-2.5-flash-image",
+      modalities: ["text", "image"],
+    });
+    expect(JSON.stringify(captured[0]?.body)).toContain("image_url");
   });
 
   it("serves repeated pet avatar generations from cache without another image call", async () => {

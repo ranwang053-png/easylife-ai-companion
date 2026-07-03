@@ -102,11 +102,13 @@ Android 打包环境暂缓，不作为当前内测上线阻塞项。
   接入后端 provider 的 AI 能力本阶段仍为 Mock。
 - 伙伴形象生成已建立 Demo 可跑的真实后端链路：Web 前端使用原生文件 input 读取用户
   授权选择的 PNG/JPG/WebP 图片，“拍照”入口在移动浏览器上带 `capture=environment`
-  提示相机，并以 data URL 上传 `/v1/pet-avatar/generate`，后端通过
-  `AI_PET_AVATAR_PROVIDER=openai` 与 `AI_PET_AVATAR_MODEL=gpt-image-1` 调用图片
-  provider，返回 `generatedAvatarUrl` data URL 供预览和保存。若图片模型使用不同 key，
-  可单独配置 `AI_PET_AVATAR_API_KEY` 和 `AI_PET_AVATAR_BASE_URL`，不得把图片模型 key
-  放进 Flutter 客户端。
+  提示相机，并以 data URL 上传 `/v1/pet-avatar/generate`。后端通过
+  `AI_PET_AVATAR_PROVIDER=openai` 调用图片 provider，并按 `AI_PET_AVATAR_MODEL`
+  自动选择协议：`gpt-image-1` 使用 OpenAI Images edits，`gemini-...image` 使用
+  OpenAI-compatible chat completions + `modalities:["text","image"]`。同一协议族内切换模型
+  只需要改 Render 环境变量；新增完全不同协议的供应商才需要补后端 adapter。若图片模型使用
+  不同 key，可单独配置 `AI_PET_AVATAR_API_KEY` 和 `AI_PET_AVATAR_BASE_URL`，不得把图片模型
+  key 放进 Flutter 客户端。
 - 为控制伙伴形象生成成本，Flutter 上传前会统一把用户授权图片预处理为最长边 1280px
   以内的高质量 JPEG，并为规范化后的图片生成 `Idempotency-Key`；后端按图片内容、模型、
   Prompt 和参考图配置做 24 小时进程内短期缓存，并对相同生成意图做 in-flight 去重，

@@ -24,8 +24,10 @@
 情绪分析通过 `EmotionProvider` 接口调用。默认 `AI_PROVIDER=fixed` 时返回固定契约
 示例；设置 `AI_PROVIDER=gateway` 并配置对应 provider key 后，会通过后端调用真实
 模型。伙伴形象生成可复用 `OPENAI_API_KEY`，也可用 `AI_PET_AVATAR_API_KEY` 和
-`AI_PET_AVATAR_BASE_URL` 单独配置支持 `gpt-image-1` 的图片模型网关。Flutter 客户端
-不得保存模型 SDK、Prompt 或密钥。
+`AI_PET_AVATAR_BASE_URL` 单独配置图片模型网关。当前后端会按
+`AI_PET_AVATAR_MODEL` 自动选择协议：`gpt-image-1` 使用 OpenAI Images edits，
+`gemini-...image` 使用 OpenAI-compatible chat completions + `modalities`。Flutter
+客户端不得保存模型 SDK、Prompt 或密钥。
 
 ## Run
 

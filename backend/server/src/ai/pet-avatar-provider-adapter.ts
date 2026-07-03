@@ -50,7 +50,11 @@ export class OpenAiPetAvatarProvider implements PetAvatarProvider {
     const subjectDescription = optionalString(input, "subjectDescription");
     const idempotencyKey = optionalIdempotencyKey(input);
     const image = parseImageDataUrl(imageDataUrl);
-    const endpoint = resolveEndpoint(baseUrlFor(this.config), "images/edits");
+    const protocol = petAvatarProtocol(this.model);
+    const endpoint = resolveEndpoint(
+      baseUrlFor(this.config),
+      protocol === "gemini-chat" ? "chat/completions" : "images/edits",
+    );
     const styleReferences = loadStyleReferenceImages(this.styleReferenceDir);
     const basePrompt = buildPrompt(subjectDescription);
     const fingerprintKey = generationFingerprintKey({
@@ -98,10 +102,10 @@ export class OpenAiPetAvatarProvider implements PetAvatarProvider {
     }>;
     basePrompt: string;
   }): Promise<PetAvatarGenerateResponse> {
-    let lastImage: string | undefined;
+    let lastImage: GeneratedImage | undefined;
 
     for (let attempt = 0; attempt < generationAttempts; attempt += 1) {
-      const b64Json = await this.generateOnce({
+      const image = await this.generateOnce({
         endpoint: options.endpoint,
         image: options.image,
         styleReferences: options.styleReferences,
@@ -110,18 +114,14 @@ export class OpenAiPetAvatarProvider implements PetAvatarProvider {
             ? options.basePrompt
             : `${options.basePrompt}\n\nThe previous attempt was cropped or too close to the canvas edge. Regenerate a complete full-body transparent cutout with the entire head, hair/ears/hat, body, legs, and shoes/paws fully visible, with at least 12% transparent padding on all sides.`,
       });
-      lastImage = b64Json;
-      if (!isCroppedCutout(b64Json)) {
-        return {
-          generatedAvatarUrl: `data:image/png;base64,${b64Json}`,
-        };
+      lastImage = image;
+      if (!isCroppedGeneratedImage(image)) {
+        return { generatedAvatarUrl: generatedImageDataUrl(image) };
       }
     }
 
     if (lastImage !== undefined) {
-      return {
-        generatedAvatarUrl: `data:image/png;base64,${lastImage}`,
-      };
+      return { generatedAvatarUrl: generatedImageDataUrl(lastImage) };
     }
     throw new Error("Image provider response is missing b64_json");
   }
@@ -139,7 +139,11 @@ export class OpenAiPetAvatarProvider implements PetAvatarProvider {
       mimeType: string;
     }>;
     prompt: string;
-  }): Promise<string> {
+  }): Promise<GeneratedImage> {
+    if (petAvatarProtocol(this.model) === "gemini-chat") {
+      return this.generateGeminiChatOnce(options);
+    }
+
     const form = new FormData();
     form.set("model", this.model);
     form.set("prompt", options.prompt);
@@ -174,13 +178,91 @@ export class OpenAiPetAvatarProvider implements PetAvatarProvider {
     if (!isRecord(parsed)) {
       throw new Error("Image provider returned a non-object response");
     }
-    return readImageB64(parsed);
+    return {
+      b64Json: readImageB64(parsed),
+      mimeType: "image/png",
+    };
   }
+
+  private async generateGeminiChatOnce(options: {
+    endpoint: URL;
+    image: {
+      bytes: ArrayBuffer;
+      fileName: string;
+      mimeType: string;
+    };
+    styleReferences: Array<{
+      bytes: ArrayBuffer;
+      fileName: string;
+      mimeType: string;
+    }>;
+    prompt: string;
+  }): Promise<GeneratedImage> {
+    const content: Array<JsonObject> = [
+      {
+        type: "text",
+        text: options.prompt,
+      },
+      imageUrlPart(options.image),
+      ...options.styleReferences.map(imageUrlPart),
+    ];
+
+    const response = await fetchWithTimeout(options.endpoint, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${requiredApiKey(this.config)}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages: [
+          {
+            role: "user",
+            content,
+          },
+        ],
+        modalities: ["text", "image"],
+        temperature: 0.4,
+      }),
+    });
+    const parsed = await response.json();
+    if (!isRecord(parsed)) {
+      throw new Error("Image provider returned a non-object response");
+    }
+    return readGeminiChatImage(parsed);
+  }
+}
+
+interface GeneratedImage {
+  b64Json: string;
+  mimeType: string;
 }
 
 function buildPrompt(subjectDescription: string | undefined): string {
   if (subjectDescription === undefined) return petAvatarPrompt;
   return `${petAvatarPrompt}\n\nSubject description from user:\n${subjectDescription}`;
+}
+
+function petAvatarProtocol(model: string): "openai-image" | "gemini-chat" {
+  const normalized = model.toLowerCase();
+  if (normalized.startsWith("gemini-") && normalized.includes("image")) {
+    return "gemini-chat";
+  }
+  return "openai-image";
+}
+
+function imageUrlPart(image: {
+  bytes: ArrayBuffer;
+  mimeType: string;
+}): JsonObject {
+  return {
+    type: "image_url",
+    image_url: {
+      url: `data:${image.mimeType};base64,${Buffer.from(image.bytes).toString(
+        "base64",
+      )}`,
+    },
+  };
 }
 
 function generationFingerprintKey(options: {
@@ -392,6 +474,67 @@ function readImageB64(response: JsonObject): string {
     throw new Error("Image provider response is missing b64_json");
   }
   return first.b64_json;
+}
+
+function readGeminiChatImage(response: JsonObject): GeneratedImage {
+  const choices = response.choices;
+  if (!Array.isArray(choices) || choices.length === 0) {
+    throw new Error("Gemini image response is missing choices");
+  }
+
+  for (const choice of choices) {
+    if (!isRecord(choice)) continue;
+    const message = choice.message;
+    if (!isRecord(message)) continue;
+    const parts = message.multi_mod_content ?? message.multiModContent;
+    const image = imageFromGeminiParts(parts);
+    if (image !== undefined) return image;
+  }
+
+  throw new Error("Gemini image response is missing inline image data");
+}
+
+function imageFromGeminiParts(value: unknown): GeneratedImage | undefined {
+  if (!Array.isArray(value)) return undefined;
+  for (const part of value) {
+    if (!isRecord(part)) continue;
+    const inlineData = part.inlineData ?? part.inline_data;
+    if (!isRecord(inlineData)) continue;
+    const data = inlineData.data;
+    if (typeof data !== "string" || data.length === 0) continue;
+    const mimeType = normalizedImageMimeType(
+      inlineData.mimeType ?? inlineData.mime_type,
+    );
+    return {
+      b64Json: data,
+      mimeType,
+    };
+  }
+  return undefined;
+}
+
+function normalizedImageMimeType(value: unknown): string {
+  if (typeof value !== "string" || value.length === 0) return "image/png";
+  if (value === "png") return "image/png";
+  if (value === "jpeg" || value === "jpg") return "image/jpeg";
+  if (value === "webp") return "image/webp";
+  if (
+    value === "image/png" ||
+    value === "image/jpeg" ||
+    value === "image/webp"
+  ) {
+    return value;
+  }
+  return "image/png";
+}
+
+function generatedImageDataUrl(image: GeneratedImage): string {
+  return `data:${image.mimeType};base64,${image.b64Json}`;
+}
+
+function isCroppedGeneratedImage(image: GeneratedImage): boolean {
+  if (image.mimeType !== "image/png") return false;
+  return isCroppedCutout(image.b64Json);
 }
 
 function isCroppedCutout(b64Json: string): boolean {
