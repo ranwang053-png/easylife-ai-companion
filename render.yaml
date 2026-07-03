@@ -72,7 +72,7 @@ envVarGroups:
       - key: DEEPSEEK_BASE_URL
         value: https://api.deepseek.com/v1
       - key: AI_PET_AVATAR_BASE_URL
-        value: https://api.openai.com/v1
+        value: https://aihubmix.com/v1
       - key: ACCESS_TOKEN_KEY_ID
         value: current
       - key: ACCESS_TOKEN_PREVIOUS_KEYS
