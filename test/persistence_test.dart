@@ -10,6 +10,7 @@ import 'package:company_app/services/user_profile_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:image/image.dart' as img;
 
 void main() {
   test('city picker includes complete province and district data', () {
@@ -234,15 +235,16 @@ void main() {
   });
 
   test('HTTP agent sends pet avatar image data to backend', () async {
-    const inputImage =
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    final inputImage = _testPetPhotoDataUrl();
     const generatedImage =
         'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
     final client = MockClient((request) async {
       expect(request.url.path, '/v1/pet-avatar/generate');
       expect(request.headers['authorization'], 'Bearer test-access-token');
+      expect(request.headers['idempotency-key'], startsWith('pet-avatar-'));
       final body = jsonDecode(request.body) as Map<String, dynamic>;
-      expect(body['imageDataUrl'], inputImage);
+      expect(body['imageDataUrl'], isNot(inputImage));
+      expect(body['imageDataUrl'], startsWith('data:image/jpeg;base64,'));
       expect(body, contains('client'));
       return http.Response(
         jsonEncode({'generatedAvatarUrl': generatedImage}),
@@ -264,8 +266,7 @@ void main() {
 
   test('HTTP agent falls back to mock avatar when backend generation fails',
       () async {
-    const inputImage =
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    final inputImage = _testPetPhotoDataUrl();
     final fallbackReasons = <String>[];
     final service = HttpAgentService(
       baseUri: Uri.parse('https://api.example.com'),
@@ -307,8 +308,7 @@ void main() {
 
   test('HTTP agent falls back when pet avatar provider account is unavailable',
       () async {
-    const inputImage =
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    final inputImage = _testPetPhotoDataUrl();
     final service = HttpAgentService(
       baseUri: Uri.parse('https://api.example.com'),
       fallback: const MockAgentService(),
@@ -320,4 +320,10 @@ void main() {
 
     expect(result, 'mock://generated/pet-avatar');
   });
+}
+
+String _testPetPhotoDataUrl() {
+  final image = img.Image(width: 4, height: 4);
+  img.fill(image, color: img.ColorRgb8(255, 255, 255));
+  return 'data:image/png;base64,${base64Encode(img.encodePng(image))}';
 }

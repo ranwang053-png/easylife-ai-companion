@@ -106,6 +106,11 @@ Android 打包环境暂缓，不作为当前内测上线阻塞项。
   provider，返回 `generatedAvatarUrl` data URL 供预览和保存。若图片模型使用不同 key，
   可单独配置 `AI_PET_AVATAR_API_KEY` 和 `AI_PET_AVATAR_BASE_URL`，不得把图片模型 key
   放进 Flutter 客户端。
+- 为控制伙伴形象生成成本，Flutter 上传前会统一把用户授权图片预处理为最长边 1280px
+  以内的高质量 JPEG，并为规范化后的图片生成 `Idempotency-Key`；后端按图片内容、模型、
+  Prompt 和参考图配置做 24 小时进程内短期缓存，并对相同生成意图做 in-flight 去重，
+  避免重复点击或网络重试造成重复调用图片模型。后端默认不再读取风格参考图库，除非显式
+  配置 `AI_PET_AVATAR_STYLE_REFERENCE_DIR`。
 - Render 上已部署 `easylife-api` Web Service 和 `easylife-postgres` PostgreSQL；
   数据库迁移 `0001`、`0002`、`0003` 已在 Render 上应用，`/v1/health` 可用。
   真实短信供应商账号、云端同步事务和真实模型调用尚未完成联调；未完成生产外部依赖
@@ -246,9 +251,10 @@ Flutter Page
   当前包含伙伴回复、情绪日记整理、每日运势、伙伴形象生成、食物识别、营养分析、
   饮食建议、饮食回顾和长期记忆提示词；用户画像文件为后端规则拼装规范，不执行
   实时模型调用。
-- `backend/style-references/pet-avatar/`：伙伴形象生成的可选默认风格参考图库。放入
-  PNG/JPG/WebP 后，后端会在生成伙伴形象时作为额外风格参考图传给图片模型；默认最多
-  读取前 3 张，需重启后端生效，图片文件默认不纳入 git。
+- `backend/style-references/pet-avatar/`：伙伴形象生成的可选风格参考图库。只有显式
+  配置 `AI_PET_AVATAR_STYLE_REFERENCE_DIR` 指向该目录或其他目录时，后端才会读取最多
+  前 3 张 PNG/JPG/WebP 作为额外风格参考图传给图片模型；需重启后端生效，图片文件默认
+  不纳入 git。
 - `lib/mock/`：静态演示数据。
 - `lib/theme/`：颜色和统一主题。
 - `test/widget_test.dart`：核心启动流程和主要交互的 Widget 测试。
@@ -351,4 +357,4 @@ flutter build web --release
 维护时只保存可复用的事实与决策，不保存密码、Token、私密账号信息、临时调试
 输出或未经验证的猜测。对仍不确定的信息标记为“待确认”，不要写成既定事实。
 
-最后更新：2026-07-02
+最后更新：2026-07-03

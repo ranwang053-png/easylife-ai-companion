@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,6 +25,18 @@ const petAvatarPrompt =
   promptPath === undefined
     ? "Transform the uploaded subject into a refined premium 3D collectible mascot for Easylife."
     : extractProductionPrompt(readFileSync(promptPath, "utf8"));
+const generationAttempts = 1;
+const cacheTtlMs = 24 * 60 * 60 * 1000;
+const maxCachedGenerations = 24;
+
+const generationCache = new Map<
+  string,
+  { result: PetAvatarGenerateResponse; expiresAt: number; lastUsedAt: number }
+>();
+const inFlightGenerations = new Map<
+  string,
+  Promise<PetAvatarGenerateResponse>
+>();
 
 export class OpenAiPetAvatarProvider implements PetAvatarProvider {
   constructor(
@@ -35,20 +48,67 @@ export class OpenAiPetAvatarProvider implements PetAvatarProvider {
   async generate(input: JsonObject): Promise<PetAvatarGenerateResponse> {
     const imageDataUrl = requiredString(input, "imageDataUrl");
     const subjectDescription = optionalString(input, "subjectDescription");
+    const idempotencyKey = optionalIdempotencyKey(input);
     const image = parseImageDataUrl(imageDataUrl);
     const endpoint = resolveEndpoint(baseUrlFor(this.config), "images/edits");
     const styleReferences = loadStyleReferenceImages(this.styleReferenceDir);
     const basePrompt = buildPrompt(subjectDescription);
+    const fingerprintKey = generationFingerprintKey({
+      endpoint,
+      model: this.model,
+      prompt: basePrompt,
+      image,
+      styleReferences,
+    });
+    const cacheKeys = generationCacheKeys(fingerprintKey, idempotencyKey);
+    const cached = cachedGeneration(cacheKeys);
+    if (cached !== undefined) return cached;
+
+    const pending = pendingGeneration(cacheKeys);
+    if (pending !== undefined) return pending;
+
+    const generation = this.generateUncached({
+      endpoint,
+      image,
+      styleReferences,
+      basePrompt,
+    })
+      .then((result) => {
+        cacheGeneration(cacheKeys, result);
+        return result;
+      })
+      .finally(() => {
+        for (const key of cacheKeys) inFlightGenerations.delete(key);
+      });
+    for (const key of cacheKeys) inFlightGenerations.set(key, generation);
+    return generation;
+  }
+
+  private async generateUncached(options: {
+    endpoint: URL;
+    image: {
+      bytes: ArrayBuffer;
+      fileName: string;
+      mimeType: string;
+    };
+    styleReferences: Array<{
+      bytes: ArrayBuffer;
+      fileName: string;
+      mimeType: string;
+    }>;
+    basePrompt: string;
+  }): Promise<PetAvatarGenerateResponse> {
     let lastImage: string | undefined;
 
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+    for (let attempt = 0; attempt < generationAttempts; attempt += 1) {
       const b64Json = await this.generateOnce({
-        endpoint,
-        image,
-        styleReferences,
-        prompt: attempt === 0
-          ? basePrompt
-          : `${basePrompt}\n\nThe previous attempt was cropped or too close to the canvas edge. Regenerate a complete full-body transparent cutout with the entire head, hair/ears/hat, body, legs, and shoes/paws fully visible, with at least 12% transparent padding on all sides.`,
+        endpoint: options.endpoint,
+        image: options.image,
+        styleReferences: options.styleReferences,
+        prompt:
+          attempt === 0
+            ? options.basePrompt
+            : `${options.basePrompt}\n\nThe previous attempt was cropped or too close to the canvas edge. Regenerate a complete full-body transparent cutout with the entire head, hair/ears/hat, body, legs, and shoes/paws fully visible, with at least 12% transparent padding on all sides.`,
       });
       lastImage = b64Json;
       if (!isCroppedCutout(b64Json)) {
@@ -123,6 +183,106 @@ function buildPrompt(subjectDescription: string | undefined): string {
   return `${petAvatarPrompt}\n\nSubject description from user:\n${subjectDescription}`;
 }
 
+function generationFingerprintKey(options: {
+  endpoint: URL;
+  model: string;
+  prompt: string;
+  image: {
+    bytes: ArrayBuffer;
+    mimeType: string;
+  };
+  styleReferences: Array<{
+    bytes: ArrayBuffer;
+    fileName: string;
+    mimeType: string;
+  }>;
+}): string {
+  const hash = createHash("sha256");
+  hash.update("pet-avatar-generation-v1\n");
+  hash.update(`endpoint=${options.endpoint.href}\n`);
+  hash.update(`model=${options.model}\n`);
+  hash.update("size=1024x1024\nquality=medium\nbackground=transparent\n");
+  hash.update(`prompt=${options.prompt}\n`);
+  hash.update(`imageMime=${options.image.mimeType}\n`);
+  hash.update(arrayBufferDigest(options.image.bytes));
+  hash.update("\n");
+  for (const reference of options.styleReferences) {
+    hash.update(`ref=${reference.fileName}:${reference.mimeType}:`);
+    hash.update(arrayBufferDigest(reference.bytes));
+    hash.update("\n");
+  }
+  return hash.digest("hex");
+}
+
+function generationCacheKeys(
+  fingerprintKey: string,
+  idempotencyKey: string | undefined,
+): string[] {
+  if (idempotencyKey === undefined) return [fingerprintKey];
+  const idempotencyDigest = createHash("sha256")
+    .update(idempotencyKey)
+    .digest("hex");
+  return [fingerprintKey, `${fingerprintKey}:idempotency:${idempotencyDigest}`];
+}
+
+function cachedGeneration(
+  cacheKeys: readonly string[],
+): PetAvatarGenerateResponse | undefined {
+  for (const cacheKey of cacheKeys) {
+    const cached = generationCache.get(cacheKey);
+    if (cached === undefined) continue;
+    const now = Date.now();
+    if (cached.expiresAt <= now) {
+      generationCache.delete(cacheKey);
+      continue;
+    }
+    cached.lastUsedAt = now;
+    return cached.result;
+  }
+  return undefined;
+}
+
+function pendingGeneration(
+  cacheKeys: readonly string[],
+): Promise<PetAvatarGenerateResponse> | undefined {
+  for (const cacheKey of cacheKeys) {
+    const pending = inFlightGenerations.get(cacheKey);
+    if (pending !== undefined) return pending;
+  }
+  return undefined;
+}
+
+function cacheGeneration(
+  cacheKeys: readonly string[],
+  result: PetAvatarGenerateResponse,
+): void {
+  const now = Date.now();
+  for (const cacheKey of cacheKeys) {
+    generationCache.set(cacheKey, {
+      result,
+      expiresAt: now + cacheTtlMs,
+      lastUsedAt: now,
+    });
+  }
+  pruneGenerationCache(now);
+}
+
+function pruneGenerationCache(now = Date.now()): void {
+  for (const [key, value] of generationCache.entries()) {
+    if (value.expiresAt <= now) generationCache.delete(key);
+  }
+  if (generationCache.size <= maxCachedGenerations) return;
+  for (const [key] of [...generationCache.entries()]
+    .sort((left, right) => left[1].lastUsedAt - right[1].lastUsedAt)
+    .slice(0, generationCache.size - maxCachedGenerations)) {
+    generationCache.delete(key);
+  }
+}
+
+function arrayBufferDigest(buffer: ArrayBuffer): string {
+  return createHash("sha256").update(Buffer.from(buffer)).digest("hex");
+}
+
 function extractProductionPrompt(markdown: string): string {
   const match = /## Production Prompt\s+([\s\S]*?)(?:\n## |\s*$)/.exec(
     markdown,
@@ -135,9 +295,8 @@ function parseImageDataUrl(value: string): {
   fileName: string;
   mimeType: string;
 } {
-  const match = /^data:(image\/(?:png|jpe?g|webp));base64,([a-z0-9+/=\s]+)$/i.exec(
-    value,
-  );
+  const match =
+    /^data:(image\/(?:png|jpe?g|webp));base64,([a-z0-9+/=\s]+)$/i.exec(value);
   if (match === null) {
     throw new Error("Pet avatar input must be a PNG, JPEG or WebP data URL");
   }
@@ -151,11 +310,12 @@ function parseImageDataUrl(value: string): {
   if (bytes.length === 0 || bytes.length > 8 * 1024 * 1024) {
     throw new Error("Pet avatar image size is invalid");
   }
-  const extension = mimeType === "image/png"
-    ? "png"
-    : mimeType === "image/webp"
-      ? "webp"
-      : "jpg";
+  const extension =
+    mimeType === "image/png"
+      ? "png"
+      : mimeType === "image/webp"
+        ? "webp"
+        : "jpg";
   return {
     bytes: bytes.buffer.slice(
       bytes.byteOffset,
@@ -166,13 +326,14 @@ function parseImageDataUrl(value: string): {
   };
 }
 
-function loadStyleReferenceImages(
-  configuredDir: string | undefined,
-): Array<{
+function loadStyleReferenceImages(configuredDir: string | undefined): Array<{
   bytes: ArrayBuffer;
   fileName: string;
   mimeType: string;
 }> {
+  if (configuredDir === undefined || configuredDir.trim().length === 0) {
+    return [];
+  }
   const directory = resolveStyleReferenceDir(configuredDir);
   if (!existsSync(directory)) return [];
 
@@ -206,13 +367,7 @@ function arrayBufferFromBuffer(buffer: Buffer): ArrayBuffer {
   return new Uint8Array(buffer).buffer;
 }
 
-function resolveStyleReferenceDir(configuredDir: string | undefined): string {
-  const defaultDir = fileURLToPath(
-    new URL("../../../style-references/pet-avatar", import.meta.url),
-  );
-  if (configuredDir === undefined || configuredDir.trim().length === 0) {
-    return defaultDir;
-  }
+function resolveStyleReferenceDir(configuredDir: string): string {
   const trimmed = configuredDir.trim();
   return isAbsolute(trimmed) ? trimmed : join(process.cwd(), trimmed);
 }
@@ -257,12 +412,14 @@ function isCroppedCutout(b64Json: string): boolean {
   }
 }
 
-function visibleAlphaBounds(png: PNG): {
-  left: number;
-  top: number;
-  right: number;
-  bottom: number;
-} | undefined {
+function visibleAlphaBounds(png: PNG):
+  | {
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+    }
+  | undefined {
   let left = png.width;
   let top = png.height;
   let right = -1;
@@ -318,6 +475,18 @@ function optionalString(value: JsonObject, key: string): string | undefined {
     return undefined;
   }
   return result.trim().slice(0, 300);
+}
+
+function optionalIdempotencyKey(value: JsonObject): string | undefined {
+  const result = value.idempotencyKey;
+  if (typeof result !== "string" || result.trim().length === 0) {
+    return undefined;
+  }
+  const trimmed = result.trim();
+  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(trimmed)) {
+    throw new Error("Pet avatar idempotency key is invalid");
+  }
+  return trimmed;
 }
 
 function resolveEndpoint(baseUrl: URL, suffix: string): URL {

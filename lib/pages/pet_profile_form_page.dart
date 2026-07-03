@@ -270,6 +270,19 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
         _originalPhotoUrl = image.dataUrl;
         _generatedAvatarUrl = generated;
       });
+      final existing = widget.initialProfile;
+      if (existing != null) {
+        final updated = _profileFromCurrentForm(existing: existing);
+        try {
+          await widget.petProfileService.updatePetProfile(updated);
+          widget.onCompleted(updated);
+        } catch (_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('形象已生成，但保存到伙伴档案失败，请稍后再试')),
+          );
+        }
+      }
     } on PetImagePickerException catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(
@@ -470,20 +483,7 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
     }
     setState(() => _isSaving = true);
     final existing = widget.initialProfile;
-    final profile = PetProfile(
-      id: existing?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
-      name: name,
-      birthday: _birthday,
-      gender: _gender,
-      personalityTags:
-          _selectedTags.isEmpty ? const ['治愈'] : [..._selectedTags],
-      relationshipNote: _relationship.isEmpty ? '伙伴' : _relationship,
-      originalPhotoUrl: _originalPhotoUrl,
-      generatedAvatarUrl: _generatedAvatarUrl,
-      createdAt: existing?.createdAt ?? DateTime.now(),
-      profileSource: _profileSource,
-      personalitySummary: _personalitySummary,
-    );
+    final profile = _profileFromCurrentForm(existing: existing);
     try {
       if (existing == null) {
         await widget.petProfileService.savePetProfile(profile);
@@ -518,6 +518,25 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
   String get _birthdayText =>
       '${_birthday.year}-${_birthday.month.toString().padLeft(2, '0')}-'
       '${_birthday.day.toString().padLeft(2, '0')}';
+
+  PetProfile _profileFromCurrentForm({PetProfile? existing}) {
+    final fallbackName = existing?.name ?? '伙伴';
+    final name = _nameController.text.trim();
+    return PetProfile(
+      id: existing?.id ?? DateTime.now().microsecondsSinceEpoch.toString(),
+      name: name.isEmpty ? fallbackName : name,
+      birthday: _birthday,
+      gender: _gender,
+      personalityTags:
+          _selectedTags.isEmpty ? const ['治愈'] : [..._selectedTags],
+      relationshipNote: _relationship.isEmpty ? '伙伴' : _relationship,
+      originalPhotoUrl: _originalPhotoUrl,
+      generatedAvatarUrl: _generatedAvatarUrl,
+      createdAt: existing?.createdAt ?? DateTime.now(),
+      profileSource: _profileSource,
+      personalitySummary: _personalitySummary,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -13,7 +13,9 @@ dependencies:
   flutter:
     sdk: flutter
   flutter_secure_storage: ^10.3.1
+  crypto: ^3.0.7
   http: ^1.6.0
+  image: 4.5.4
   shared_preferences: ^2.5.5
   speech_to_text: ^7.4.0
 

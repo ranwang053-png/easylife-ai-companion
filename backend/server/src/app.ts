@@ -118,10 +118,20 @@ export function createApp(dependencies: AppDependencies) {
     ]),
     validateBody("PetAvatarGenerateRequest"),
     async (request, response) => {
+      const idempotencyKey = petAvatarIdempotencyKey(request);
+      if (idempotencyKey === null) {
+        sendError(response, request.requestId, "VALIDATION_ERROR");
+        return;
+      }
       try {
-        const result = await petAvatarProvider.generate(
-          request.body as JsonObject,
-        );
+        const input =
+          idempotencyKey === undefined
+            ? (request.body as JsonObject)
+            : ({
+                ...(request.body as JsonObject),
+                idempotencyKey,
+              } satisfies JsonObject);
+        const result = await petAvatarProvider.generate(input);
         const validation = validateContractSchema(
           "PetAvatarGenerateResponse",
           result,
@@ -140,7 +150,9 @@ export function createApp(dependencies: AppDependencies) {
               event: "pet_avatar_provider_error",
               requestId: request.requestId,
               error:
-                error instanceof Error ? error.message : "unknown provider error",
+                error instanceof Error
+                  ? error.message
+                  : "unknown provider error",
             }),
           );
         }
@@ -460,6 +472,16 @@ export function createApp(dependencies: AppDependencies) {
   app.use(errorHandler);
 
   return app;
+}
+
+function petAvatarIdempotencyKey(
+  request: express.Request,
+): string | undefined | null {
+  const value = request.get("Idempotency-Key");
+  if (value === undefined || value.length === 0) return undefined;
+  const trimmed = value.trim();
+  if (!/^[A-Za-z0-9._:-]{1,128}$/.test(trimmed)) return null;
+  return trimmed;
 }
 
 function requireAuthContext(request: express.Request) {

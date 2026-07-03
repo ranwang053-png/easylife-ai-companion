@@ -381,6 +381,17 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: "#/components/parameters/RequestId"
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: |
+            客户端为同一次伙伴形象生成意图生成的稳定幂等键。重复提交同一图片、
+            同一模型和同一 Prompt 配置时，服务端可直接返回已生成结果，避免重复调用图像模型。
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+            pattern: '^[A-Za-z0-9._:-]+$'
       requestBody:
         required: true
         content:

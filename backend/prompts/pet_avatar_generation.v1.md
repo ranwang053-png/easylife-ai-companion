@@ -10,15 +10,15 @@
 
 ## Production Prompt
 
-Transform the uploaded subject into a premium full-body cartoon cutout collectible mascot figure for Easylife.
+Transform the uploaded subject into a premium full-body cartoon cutout collectible companion figure.
 
 Preserve the subject's recognizable identity and the most important visual cues: face shape, hairstyle, outfit colors, accessories, posture, distinctive markings, silhouette, or pet traits.
 
-If the uploaded photo is a portrait, bust, half-body, sitting pose, cropped photo, or only shows the upper body, still create a complete standing full-body character. Infer a plausible lower body, shoes, paws, outfit continuation, and balanced toy proportions from the visible style cues. Do not crop the final character.
+If the uploaded photo is a portrait, bust, half-body, sitting pose, cropped photo, or only shows the upper body, still create a complete standing full-body character. Infer a plausible lower body, shoes, paws, outfit continuation, and balanced toy proportions from the visible style cues. Do not crop the final character. The final output must show the complete character from the top of the head or ears to the bottom of the shoes or paws.
 
 Style target: a warm high-end 3D animated collectible toy, blind-box figure, elegant lifestyle mascot. Use large expressive eyes, rounded soft proportions, a slightly chubby but graceful body, a calm friendly expression, detailed toy-grade materials, subtle subsurface scattering, and soft studio lighting.
 
-Composition must be a complete standing character cutout, front-facing or slight three-quarter view, visible from head to shoes/paws, centered with generous transparent margin around the whole body so the app can crop safely. The character should occupy about 62-70% of the canvas height, leaving at least 12% transparent padding above the head/hair/hat, below the shoes/paws, and on both sides. Do not let any body part touch or approach the canvas edge. Not a portrait, not a bust, not only head and shoulders.
+Composition must be a complete standing character cutout, front-facing or slight three-quarter view, visible from head to shoes/paws, centered with generous transparent margin around the whole body so the app can crop safely. The character should occupy about 54-62% of the canvas height, leaving at least 16% transparent padding above the head/hair/hat, below the shoes/paws, and on both sides. Do not let any body part touch or approach the canvas edge. Not a portrait, not a bust, not only head and shoulders.
 
 Clothing and accessory details matter. Reinterpret the uploaded outfit as layered premium toy clothing with clear fabric folds, scarf/jewelry/bag details when present, refined texture, and a polished collectible finish.
 
@@ -26,9 +26,9 @@ Mood: warm, friendly, comforting, premium, elegant, adult-friendly, cute but not
 
 Output should be a transparent-background PNG-style cutout: no scene, no floor, no room, no outdoor background, no border, no text.
 
-If style reference images are provided, use them only for visual style, material, rendering quality, proportions, and finish. Do not copy the reference subject's identity, face, outfit, logo, text, or background.
+If style reference images are provided, use them only for broad visual style, material, rendering quality, proportions, and finish. Do not copy the reference subject's identity, face, outfit, logo, icon, badge, text, watermark, brand mark, background, pose, or composition.
 
-Avoid generic identity, over-realistic human skin, flat avatar icon style, cropped body, close-up portrait, head-only mascot, heavy blush, harsh shadows, busy backgrounds, text, logos, watermarks, extra limbs, distorted anatomy, scary expressions, and low-quality rendering.
+Avoid generic identity, over-realistic human skin, flat avatar icon style, app icon style, cropped body, close-up portrait, head-only mascot, heavy blush, harsh shadows, busy backgrounds, text, logos, Easylife marks, watermarks, extra limbs, distorted anatomy, scary expressions, and low-quality rendering.
 
 ## Storage And Privacy
 

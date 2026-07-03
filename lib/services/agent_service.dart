@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
 
 import '../models/app_models.dart';
 import 'user_profile_service.dart';
@@ -518,11 +520,12 @@ class HttpAgentService implements AgentService {
     if (!imagePath.startsWith('data:image/')) {
       return fallback.generatePetAvatarFromPhoto(imagePath);
     }
-    if (imagePath.length > 8 * 1024 * 1024) {
-      onFallback?.call('pet_avatar_payload_too_large');
-      throw AgentServiceException(_petAvatarErrorMessage(413));
-    }
     try {
+      final preparedImage = _preparePetAvatarUpload(imagePath);
+      if (preparedImage.dataUrl.length > 8 * 1024 * 1024) {
+        onFallback?.call('pet_avatar_payload_too_large');
+        throw AgentServiceException(_petAvatarErrorMessage(413));
+      }
       final accessToken = await accessTokenProvider();
       if (accessToken == null) {
         onFallback?.call('pet_avatar_missing_access_token');
@@ -535,9 +538,10 @@ class HttpAgentService implements AgentService {
               'content-type': 'application/json',
               'Authorization': 'Bearer $accessToken',
               'X-Request-Id': _randomUuid(),
+              'Idempotency-Key': preparedImage.idempotencyKey,
             },
             body: jsonEncode({
-              'imageDataUrl': imagePath,
+              'imageDataUrl': preparedImage.dataUrl,
               'client': {
                 'platform': _clientPlatform(),
                 'appVersion': '0.3.0+3',
@@ -568,6 +572,64 @@ class HttpAgentService implements AgentService {
   @override
   Future<void> updateUserProfile(UserProfile profile) =>
       fallback.updateUserProfile(profile);
+}
+
+class _PreparedPetAvatarUpload {
+  const _PreparedPetAvatarUpload({
+    required this.dataUrl,
+    required this.idempotencyKey,
+  });
+
+  final String dataUrl;
+  final String idempotencyKey;
+}
+
+_PreparedPetAvatarUpload _preparePetAvatarUpload(String dataUrl) {
+  final match = RegExp(
+    r'^data:image/(?:png|jpe?g|webp);base64,([a-z0-9+/=\s]+)$',
+    caseSensitive: false,
+  ).firstMatch(dataUrl);
+  if (match == null) {
+    throw AgentServiceException(_petAvatarErrorMessage(400));
+  }
+  final rawBase64 = match.group(1);
+  if (rawBase64 == null) {
+    throw AgentServiceException(_petAvatarErrorMessage(400));
+  }
+  final sourceBytes = base64Decode(rawBase64.replaceAll(RegExp(r'\s'), ''));
+  if (sourceBytes.isEmpty || sourceBytes.length > 12 * 1024 * 1024) {
+    throw AgentServiceException(_petAvatarErrorMessage(413));
+  }
+  final decoded = img.decodeImage(sourceBytes);
+  if (decoded == null || decoded.width <= 0 || decoded.height <= 0) {
+    throw AgentServiceException(_petAvatarErrorMessage(400));
+  }
+
+  const maxSide = 1280;
+  final longestSide = max(decoded.width, decoded.height);
+  final target = longestSide > maxSide
+      ? img.copyResize(
+          decoded,
+          width: decoded.width >= decoded.height ? maxSide : null,
+          height: decoded.height > decoded.width ? maxSide : null,
+          interpolation: img.Interpolation.cubic,
+        )
+      : decoded;
+
+  Uint8List? encoded;
+  for (final quality in const [92, 88, 84, 80]) {
+    final candidate =
+        Uint8List.fromList(img.encodeJpg(target, quality: quality));
+    encoded = candidate;
+    if (candidate.length <= 2 * 1024 * 1024) break;
+  }
+
+  final normalizedDataUrl = 'data:image/jpeg;base64,${base64Encode(encoded!)}';
+  final uploadHash = sha256.convert(utf8.encode(normalizedDataUrl)).toString();
+  return _PreparedPetAvatarUpload(
+    dataUrl: normalizedDataUrl,
+    idempotencyKey: 'pet-avatar-$uploadHash',
+  );
 }
 
 String _petAvatarErrorMessage(int statusCode) {
