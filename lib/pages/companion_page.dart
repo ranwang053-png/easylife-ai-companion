@@ -12,6 +12,10 @@ import '../widgets/page_header.dart';
 import '../widgets/responsive_page.dart';
 import '../widgets/soft_card.dart';
 
+bool _isTypingPunctuation(String character) {
+  return '，。！？；：、,.!?;:\n'.contains(character);
+}
+
 class CompanionPage extends StatefulWidget {
   const CompanionPage({
     required this.agentService,
@@ -33,6 +37,9 @@ class CompanionPage extends StatefulWidget {
 }
 
 class CompanionPageState extends State<CompanionPage> {
+  static const _typingCharacterDelay = Duration(milliseconds: 22);
+  static const _typingPunctuationDelay = Duration(milliseconds: 90);
+
   final _controller = TextEditingController();
   final _inputFocusNode = FocusNode();
   final _speech = SpeechToText();
@@ -43,6 +50,10 @@ class CompanionPageState extends State<CompanionPage> {
   var _savedUserMessageCount = 0;
   var _petStatus = '平静';
   var _isAnalyzing = false;
+  var _isWaitingForReply = false;
+  var _isTypingReply = false;
+  var _typingReplyText = '';
+  var _replyAnimationToken = 0;
   var _isRecorded = false;
   var _isLoadingHistory = true;
   var _speechInitialized = false;
@@ -72,6 +83,7 @@ class CompanionPageState extends State<CompanionPage> {
 
   @override
   void dispose() {
+    _replyAnimationToken += 1;
     _speech.cancel();
     _controller.dispose();
     _inputFocusNode.dispose();
@@ -90,31 +102,75 @@ class CompanionPageState extends State<CompanionPage> {
     setState(() {
       _conversation.add(_ConversationTurn.user(text));
       _isAnalyzing = true;
+      _isWaitingForReply = true;
+      _isTypingReply = false;
+      _typingReplyText = '';
+      _replyAnimationToken += 1;
       _isRecorded = false;
       _petStatus = '专注';
     });
-    final profile = await widget.userProfileService.loadProfile();
-    final reply = await widget.agentService.generateCompanionReply(
-      _conversation.map((turn) => turn.toAgentTurn()).toList(growable: false),
-      profile,
-      companion: widget.petProfile,
-    );
-    if (!mounted) return;
-    final emotionLabel = reply.emotionLabel ?? '平静';
-    setState(() {
-      _insight = EmotionInsight(
-        label: emotionLabel,
-        labels: [emotionLabel],
-        intensity: 50,
-        possibleReason: '这份感受正在被慢慢看见。',
-        petSuggestion: '先继续把最在意的部分说出来，不急着马上解决。',
-        petReply: reply.reply,
-        petStatus: emotionLabel,
+    final animationToken = _replyAnimationToken;
+    try {
+      final profile = await widget.userProfileService.loadProfile();
+      final reply = await widget.agentService.generateCompanionReply(
+        _conversation.map((turn) => turn.toAgentTurn()).toList(growable: false),
+        profile,
+        companion: widget.petProfile,
       );
-      _conversation.add(_ConversationTurn.companion(reply.reply));
-      _petStatus = _companionStatusForEmotion(emotionLabel);
-      _isAnalyzing = false;
-    });
+      if (!mounted || animationToken != _replyAnimationToken) return;
+      final emotionLabel = reply.emotionLabel ?? '平静';
+      setState(() {
+        _insight = EmotionInsight(
+          label: emotionLabel,
+          labels: [emotionLabel],
+          intensity: 50,
+          possibleReason: '这份感受正在被慢慢看见。',
+          petSuggestion: '先继续把最在意的部分说出来，不急着马上解决。',
+          petReply: reply.reply,
+          petStatus: emotionLabel,
+        );
+        _isWaitingForReply = false;
+        _isTypingReply = true;
+        _typingReplyText = '';
+      });
+      await _typeCompanionReply(reply.reply, animationToken: animationToken);
+      if (!mounted || animationToken != _replyAnimationToken) return;
+      setState(() {
+        _conversation.add(_ConversationTurn.companion(reply.reply));
+        _typingReplyText = '';
+        _isTypingReply = false;
+        _petStatus = _companionStatusForEmotion(emotionLabel);
+        _isAnalyzing = false;
+      });
+    } on Exception {
+      if (!mounted || animationToken != _replyAnimationToken) return;
+      setState(() {
+        _isAnalyzing = false;
+        _isWaitingForReply = false;
+        _isTypingReply = false;
+        _typingReplyText = '';
+        _petStatus = _companionStatusForLatestLog(
+          _history.isEmpty ? null : _history.first,
+        );
+      });
+      _showPlaceholder('伙伴暂时没能回应，请稍后再试');
+    }
+  }
+
+  Future<void> _typeCompanionReply(
+    String reply, {
+    required int animationToken,
+  }) async {
+    for (var index = 0; index < reply.length; index += 1) {
+      if (!mounted || animationToken != _replyAnimationToken) return;
+      setState(() => _typingReplyText = reply.substring(0, index + 1));
+      final character = reply[index];
+      await Future<void>.delayed(
+        _isTypingPunctuation(character)
+            ? _typingPunctuationDelay
+            : _typingCharacterDelay,
+      );
+    }
   }
 
   Future<void> _recordMood() async {
@@ -206,9 +262,13 @@ class CompanionPageState extends State<CompanionPage> {
 
   void _clearCurrentConversation() {
     if (_isAnalyzing || _conversation.isEmpty) return;
+    _replyAnimationToken += 1;
     setState(() {
       _conversation.clear();
       _insight = null;
+      _isWaitingForReply = false;
+      _isTypingReply = false;
+      _typingReplyText = '';
       _isRecorded = false;
       _savedUserMessageCount = 0;
       _petStatus = _companionStatusForLatestLog(
@@ -349,7 +409,8 @@ class CompanionPageState extends State<CompanionPage> {
             _ConversationThread(
               turns: _conversation,
               petName: petName,
-              isReplying: _isAnalyzing,
+              isWaitingForReply: _isWaitingForReply,
+              typingReplyText: _isTypingReply ? _typingReplyText : '',
             ),
             const SizedBox(height: 22),
           ],
@@ -470,12 +531,14 @@ class _ConversationThread extends StatelessWidget {
   const _ConversationThread({
     required this.turns,
     required this.petName,
-    required this.isReplying,
+    required this.isWaitingForReply,
+    required this.typingReplyText,
   });
 
   final List<_ConversationTurn> turns;
   final String petName;
-  final bool isReplying;
+  final bool isWaitingForReply;
+  final String typingReplyText;
 
   @override
   Widget build(BuildContext context) {
@@ -496,42 +559,110 @@ class _ConversationThread extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           for (final turn in turns) ...[
-            Align(
-              alignment:
-                  turn.isUser ? Alignment.centerRight : Alignment.centerLeft,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 590),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 11,
-                ),
-                decoration: BoxDecoration(
-                  color:
-                      turn.isUser ? AppColors.primaryDark : AppColors.softGreen,
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Text(
-                  turn.text,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: turn.isUser ? Colors.white : AppColors.ink,
-                        height: 1.55,
-                      ),
-                ),
-              ),
+            _ConversationBubble(
+              text: turn.text,
+              isUser: turn.isUser,
             ),
             const SizedBox(height: 9),
           ],
-          if (isReplying)
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                '$petName正在回复…',
-                style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: AppColors.secondaryInk,
-                    ),
-              ),
-            ),
+          if (isWaitingForReply) ...[
+            _ThinkingBubble(petName: petName),
+            const SizedBox(height: 9),
+          ] else if (typingReplyText.isNotEmpty) ...[
+            _ConversationBubble(text: typingReplyText, isUser: false),
+            const SizedBox(height: 9),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _ConversationBubble extends StatelessWidget {
+  const _ConversationBubble({
+    required this.text,
+    required this.isUser,
+  });
+
+  final String text;
+  final bool isUser;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 590),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: isUser ? AppColors.primaryDark : AppColors.softGreen,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          text,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: isUser ? Colors.white : AppColors.ink,
+                height: 1.55,
+              ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ThinkingBubble extends StatelessWidget {
+  const _ThinkingBubble({required this.petName});
+
+  final String petName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Container(
+        key: const Key('companion-thinking-bubble'),
+        constraints: const BoxConstraints(maxWidth: 590),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.softGreen,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const _Dot(size: 6, opacity: .45),
+            const SizedBox(width: 5),
+            const _Dot(size: 6, opacity: .65),
+            const SizedBox(width: 5),
+            const _Dot(size: 6, opacity: .9),
+            const SizedBox(width: 10),
+            Text(
+              '$petName在想怎么回应你',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: AppColors.secondaryInk,
+                  ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Dot extends StatelessWidget {
+  const _Dot({required this.size, required this.opacity});
+
+  final double size;
+  final double opacity;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: AppColors.primaryDark.withValues(alpha: opacity),
+        shape: BoxShape.circle,
       ),
     );
   }

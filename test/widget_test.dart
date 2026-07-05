@@ -45,6 +45,22 @@ class _ControlledFoodAgentService extends MockAgentService {
   }
 }
 
+class _ControlledCompanionAgentService extends MockAgentService {
+  final Completer<CompanionReplyResult> reply =
+      Completer<CompanionReplyResult>();
+  var replyCalls = 0;
+
+  @override
+  Future<CompanionReplyResult> generateCompanionReply(
+    List<AgentConversationTurn> conversation,
+    UserProfile profile, {
+    PetProfile? companion,
+  }) {
+    replyCalls += 1;
+    return reply.future;
+  }
+}
+
 Future<void> authenticateNewUser(WidgetTester tester) async {
   await tester.enterText(find.byKey(const Key('phone-field')), '13812345678');
   await tester.tap(find.byKey(const Key('send-code-button')));
@@ -771,6 +787,76 @@ void main() {
     expect(find.text('本轮摘要'), findsNothing);
     expect(find.text('可能原因'), findsNothing);
     expect(find.text('用户情绪及变化'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('companion reply shows thinking bubble and typed text', (
+    tester,
+  ) async {
+    final store = MemoryLocalStore();
+    final userProfileService = LocalUserProfileService(store);
+    await userProfileService.saveProfile(MockUserProfileService.currentProfile);
+    final agentService = _ControlledCompanionAgentService();
+    final repository = LocalJournalRepository(store);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanionPage(
+          agentService: agentService,
+          userProfileService: userProfileService,
+          journalRepository: repository,
+          petProfile: null,
+          onCreatePetProfile: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final input = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.hintText == '例如：今天事情很多，我有点累，也担心做得不够好…',
+    );
+    await tester.enterText(input, '今天睡到了下午');
+    await tester.ensureVisible(find.text('发送'));
+    await tester.tap(find.text('发送'));
+    await tester.pump();
+
+    expect(agentService.replyCalls, 1);
+    expect(find.text('今天睡到了下午'), findsOneWidget);
+    expect(find.byKey(const Key('companion-thinking-bubble')), findsOneWidget);
+    expect(find.text('慢慢来，我们先把今天放一放。'), findsNothing);
+    var saveButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, '保存情绪日记'),
+    );
+    expect(saveButton.onPressed, isNull);
+
+    agentService.reply.complete(
+      const CompanionReplyResult(
+        reply: '慢慢来，我们先把今天放一放。',
+        emotionLabel: '平静',
+        riskLevel: 'none',
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 35));
+
+    expect(find.byKey(const Key('companion-thinking-bubble')), findsNothing);
+    expect(find.text('慢慢来，我们先把今天放一放。'), findsNothing);
+    expect(find.textContaining('慢'), findsWidgets);
+    saveButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, '保存情绪日记'),
+    );
+    expect(saveButton.onPressed, isNull);
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+
+    expect(find.text('慢慢来，我们先把今天放一放。'), findsOneWidget);
+    saveButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, '保存情绪日记'),
+    );
+    expect(saveButton.onPressed, isNotNull);
     expect(tester.takeException(), isNull);
   });
 
