@@ -925,6 +925,74 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('companion avatar image stays stable while reply is typing', (
+    tester,
+  ) async {
+    const generatedImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    final store = MemoryLocalStore();
+    final userProfileService = LocalUserProfileService(store);
+    await userProfileService.saveProfile(MockUserProfileService.currentProfile);
+    final agentService = _ControlledCompanionAgentService();
+    final repository = LocalJournalRepository(store);
+    final petProfile = PetProfile(
+      id: 'pet-typing-avatar',
+      name: '一团',
+      birthday: DateTime(2023, 3, 12),
+      gender: '女',
+      personalityTags: const ['安静'],
+      relationshipNote: '朋友',
+      originalPhotoUrl: null,
+      generatedAvatarUrl: generatedImage,
+      createdAt: DateTime(2026, 7, 5),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: CompanionPage(
+          agentService: agentService,
+          userProfileService: userProfileService,
+          journalRepository: repository,
+          petProfile: petProfile,
+          onCreatePetProfile: () {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final avatarFinder = find.byKey(
+      const Key('companion-page-avatar-image'),
+    );
+    final initialAvatarImage = tester.widget<Image>(avatarFinder);
+
+    final input = find.byWidgetPredicate(
+      (widget) =>
+          widget is TextField &&
+          widget.decoration?.hintText == '例如：今天事情很多，我有点累，也担心做得不够好…',
+    );
+    await tester.enterText(input, '今天睡到了下午');
+    await tester.ensureVisible(find.text('发送'));
+    await tester.tap(find.text('发送'));
+    await tester.pump();
+    agentService.reply.complete(
+      const CompanionReplyResult(
+        reply: '慢慢来，我们先把今天放一放。',
+        emotionLabel: '平静',
+        riskLevel: 'none',
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 35));
+
+    final typingAvatarImage = tester.widget<Image>(avatarFinder);
+    expect(typingAvatarImage.image, same(initialAvatarImage.image));
+
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('companion conversation can be cleared without saving a journal',
       (
     tester,

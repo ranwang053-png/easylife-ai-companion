@@ -29,10 +29,13 @@ class _CompanionAvatarState extends State<CompanionAvatar>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
   late final Animation<double> _scale;
+  String? _imageSource;
+  ImageProvider? _imageProvider;
 
   @override
   void initState() {
     super.initState();
+    _syncImageProvider();
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
@@ -48,6 +51,7 @@ class _CompanionAvatarState extends State<CompanionAvatar>
   @override
   void didUpdateWidget(covariant CompanionAvatar oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _syncImageProvider();
     if (widget.breathing && !_isWidgetTestEnvironment) {
       if (!_controller.isAnimating) _controller.repeat(reverse: true);
     } else {
@@ -62,11 +66,23 @@ class _CompanionAvatarState extends State<CompanionAvatar>
     super.dispose();
   }
 
+  void _syncImageProvider() {
+    final source = widget.imageUrl ?? widget.profile?.generatedAvatarUrl;
+    if (source == _imageSource) return;
+    _imageSource = source;
+    if (source != null && source.startsWith('data:image/')) {
+      _imageProvider = MemoryImage(base64Decode(source.split(',').last));
+    } else if (source != null && source.startsWith('https://')) {
+      _imageProvider = NetworkImage(source);
+    } else {
+      _imageProvider = null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final imageUrl = widget.imageUrl ?? widget.profile?.generatedAvatarUrl;
     final child = _AvatarImage(
-      imageUrl: imageUrl,
+      imageProvider: _imageProvider,
       size: widget.size,
       imageKey: widget.imageKey,
     );
@@ -78,32 +94,27 @@ class _CompanionAvatarState extends State<CompanionAvatar>
 
 class _AvatarImage extends StatelessWidget {
   const _AvatarImage({
-    required this.imageUrl,
+    required this.imageProvider,
     required this.size,
     required this.imageKey,
   });
 
-  final String? imageUrl;
+  final ImageProvider? imageProvider;
   final double size;
   final Key? imageKey;
 
   @override
   Widget build(BuildContext context) {
-    final source = imageUrl;
-    if (source != null && source.startsWith('data:image/')) {
+    final image = imageProvider;
+    if (image != null) {
       return SizedBox.square(
         dimension: size,
-        child: Image.memory(
-          base64Decode(source.split(',').last),
+        child: Image(
+          image: image,
           key: imageKey,
           fit: BoxFit.contain,
+          gaplessPlayback: true,
         ),
-      );
-    }
-    if (source != null && source.startsWith('https://')) {
-      return SizedBox.square(
-        dimension: size,
-        child: Image.network(source, key: imageKey, fit: BoxFit.contain),
       );
     }
     return CompanionPet(size: size);
