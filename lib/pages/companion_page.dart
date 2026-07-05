@@ -37,8 +37,8 @@ class CompanionPage extends StatefulWidget {
 }
 
 class CompanionPageState extends State<CompanionPage> {
-  static const _typingCharacterDelay = Duration(milliseconds: 22);
-  static const _typingPunctuationDelay = Duration(milliseconds: 90);
+  static const _typingCharacterDelay = Duration(milliseconds: 55);
+  static const _typingPunctuationDelay = Duration(milliseconds: 160);
 
   final _controller = TextEditingController();
   final _inputFocusNode = FocusNode();
