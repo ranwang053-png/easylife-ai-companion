@@ -45,15 +45,6 @@ jobs:
             --dart-define=EASYLIFE_API_BASE_URL=$EASYLIFE_API_BASE_URL \
             --base-href=/${{ github.event.repository.name }}/
 
-      - name: Add web asset cache busting
-        run: |
-          build_id="${GITHUB_SHA::12}"
-          main_hash="$(sha256sum build/web/main.dart.js | cut -c 1-12)"
-          main_file="main.${main_hash}.dart.js"
-          mv build/web/main.dart.js "build/web/${main_file}"
-          perl -0pi -e "s/\"mainJsPath\":\"main\\.dart\\.js\"/\"mainJsPath\":\"${main_file}\"/g" build/web/flutter_bootstrap.js
-          perl -0pi -e "s/src=\"flutter_bootstrap\\.js\"/src=\"flutter_bootstrap.js?v=${build_id}\"/g" build/web/index.html
-
       - name: Publish to gh-pages branch
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
