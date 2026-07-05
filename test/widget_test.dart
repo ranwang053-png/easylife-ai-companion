@@ -649,6 +649,71 @@ void main() {
     expect((await petProfileService.getPetProfile())?.name, '新伙伴');
   });
 
+  testWidgets('companion profile saves a custom relationship', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final initialProfile = PetProfile(
+      id: 'custom-relationship',
+      name: '糯米',
+      birthday: DateTime(2022, 6, 1),
+      gender: '女',
+      personalityTags: const ['温柔'],
+      relationshipNote: '朋友',
+      originalPhotoUrl: null,
+      generatedAvatarUrl: null,
+      createdAt: DateTime(2026, 6, 1),
+    );
+    PetProfile? completedProfile;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PetProfileFormPage(
+          agentService: const MockAgentService(),
+          petProfileService: const MockPetProfileService(),
+          initialProfile: initialProfile,
+          onCompleted: (profile) => completedProfile = profile,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final relationshipField = find.text('关系');
+    await tester.scrollUntilVisible(
+      relationshipField,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(relationshipField);
+    await tester.pumpAndSettle();
+
+    expect(find.text('宠物'), findsOneWidget);
+    expect(find.text('其他'), findsNothing);
+    await tester.enterText(
+      find.byKey(const Key('pet-profile-custom-option-field')),
+      '灵魂搭子',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('pet-profile-custom-option-submit')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('灵魂搭子'), findsOneWidget);
+    final submitButton = find.widgetWithText(FilledButton, '完成');
+    await tester.scrollUntilVisible(
+      submitButton,
+      250,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(submitButton);
+    await tester.pumpAndSettle();
+
+    expect(completedProfile?.relationshipNote, '灵魂搭子');
+  });
+
   testWidgets(
     'legacy pet gender opens in companion profile without assertion',
     (tester) async {

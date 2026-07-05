@@ -50,7 +50,7 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
   var _isGeneratingAvatar = false;
 
   static const _tags = ['温柔', '活泼', '理性', '安静', '幽默', '治愈'];
-  static const _relationships = ['宠物', '恋人', '朋友', '家人', '偶像', '导师', '其他'];
+  static const _relationships = ['宠物', '恋人', '朋友', '家人', '偶像', '导师'];
   static const _genders = ['男', '女', '非二元', '保密'];
 
   @override
@@ -307,45 +307,91 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
     required String title,
     required List<String> options,
     String? current,
+    bool allowsCustom = false,
+    String customLabel = '自定义',
+    String customHint = '输入自定义内容',
   }) {
+    final optionSet = options.toSet();
+    final customController = TextEditingController(
+      text: allowsCustom && current != null && !optionSet.contains(current)
+          ? current
+          : '',
+    );
+
     return showModalBottomSheet<String>(
       context: context,
+      isScrollControlled: allowsCustom,
+      showDragHandle: true,
       builder: (context) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 5,
-                  margin: const EdgeInsets.only(bottom: 18),
-                  decoration: BoxDecoration(
-                    color: AppColors.ink,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
+          padding: EdgeInsets.fromLTRB(
+            20,
+            0,
+            20,
+            20 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: StatefulBuilder(
+            builder: (context, setSheetState) {
+              final customValue = customController.text.trim();
+
+              return SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 12),
+                    for (final option in options)
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(option),
+                        selected: option == current,
+                        selectedTileColor: AppColors.primaryMist,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        onTap: () => Navigator.pop(context, option),
+                      ),
+                    if (allowsCustom) ...[
+                      const SizedBox(height: 10),
+                      TextField(
+                        key: const Key('pet-profile-custom-option-field'),
+                        controller: customController,
+                        textInputAction: TextInputAction.done,
+                        decoration: InputDecoration(
+                          labelText: customLabel,
+                          hintText: customHint,
+                        ),
+                        onChanged: (_) => setSheetState(() {}),
+                        onSubmitted: (value) {
+                          final trimmed = value.trim();
+                          if (trimmed.isEmpty) return;
+                          Navigator.pop(context, trimmed);
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      FilledButton(
+                        key: const Key('pet-profile-custom-option-submit'),
+                        onPressed: customValue.isEmpty
+                            ? null
+                            : () => Navigator.pop(context, customValue),
+                        child: Text('使用$customLabel'),
+                      ),
+                    ],
+                  ],
                 ),
-              ),
-              Text(title, style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              for (final option in options)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(option),
-                  selected: option == current,
-                  selectedTileColor: AppColors.primaryMist,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  onTap: () => Navigator.pop(context, option),
-                ),
-            ],
+              );
+            },
           ),
         ),
       ),
-    );
+    ).then((value) {
+      Future<void>.delayed(
+        const Duration(milliseconds: 400),
+        customController.dispose,
+      );
+      return value;
+    });
   }
 
   Future<void> _analyzeProfile() async {
@@ -540,10 +586,7 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
 
   @override
   Widget build(BuildContext context) {
-    final relationshipItems = <String>{
-      ..._relationships,
-      if (_relationship.isNotEmpty) _relationship,
-    }.toList();
+    final relationshipItems = _relationships.toList();
 
     return Scaffold(
       backgroundColor: AppColors.canvas,
@@ -648,6 +691,9 @@ class _PetProfileFormPageState extends State<PetProfileFormPage> {
                     title: '关系',
                     options: relationshipItems,
                     current: _relationship.isEmpty ? null : _relationship,
+                    allowsCustom: true,
+                    customLabel: '自定义关系',
+                    customHint: '例如：搭子、室友、树洞、另一个自己',
                   );
                   if (value == null || !mounted) return;
                   setState(() => _relationship = value);
