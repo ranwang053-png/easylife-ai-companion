@@ -12,7 +12,7 @@ Rules:
 
 Current prompts:
 
-- `companion_reply.v1.md`: 低成本多轮陪伴回复；每轮只生成回复、一个可选情绪标签、风险等级和可选服务建议。
+- `companion_reply.v1.md`: 低成本多轮陪伴回复；后端先用规则注入 `personaSummary`、`replyIntent` 和 `questionAllowed`，模型生成默认简短、必要时可稍微展开的自然回复、一个可选情绪标签、风险等级和可选服务建议。
 - `daily_fortune_generation.v1.md`: 今日运势生成；整体解读限制为 180-260 字，不重复生成整体分数解释。
 - `diet_advice_planning.v1.md`: 基于后端饮食摘要生成最多两条调整建议和明日轻量餐单。
 - `diet_review.v1.md`: 只生成上一期、本期的语言总结和下一期建议；统计值全部由后端计算。

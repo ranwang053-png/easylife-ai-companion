@@ -12,7 +12,7 @@
     "start": "node dist/src/server.js",
     "start:worker": "node dist/src/worker.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run test/contract.test.ts test/auth.integration.test.ts test/sms-provider.test.ts test/ai-provider.test.ts"
+    "test": "vitest run test/contract.test.ts test/auth.integration.test.ts test/sms-provider.test.ts test/ai-provider.test.ts test/companion-reply-policy.test.ts"
   },
   "dependencies": {
     "ajv": "^8.17.1",

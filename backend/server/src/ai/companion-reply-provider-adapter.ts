@@ -1,5 +1,10 @@
 import type { CompanionReplyProvider } from "../providers/companion-reply-provider.js";
 import type { CompanionReplyResponse, JsonObject } from "../types.js";
+import {
+  applyCompanionReplyPolicy,
+  buildCompanionReplyGuidance,
+  enrichCompanionReplyInput,
+} from "./companion-reply-policy.js";
 import { loadPrompt } from "./prompt-loader.js";
 import type { TextModelAdapter } from "./text-model-adapters.js";
 
@@ -12,23 +17,27 @@ export class TextModelCompanionReplyProvider implements CompanionReplyProvider {
   ) {}
 
   async reply(input: JsonObject): Promise<CompanionReplyResponse> {
+    const guidance = buildCompanionReplyGuidance(input);
     const result = await this.adapter.completeJson({
       model: this.model,
       systemPrompt: companionReplyPrompt,
       userPayload: {
-        input,
+        input: enrichCompanionReplyInput(input),
         output_contract:
           "Return only JSON with reply, emotionLabel, riskLevel, serviceSuggestion.",
       },
       temperature: 0.45,
-      maxTokens: 700,
+      maxTokens: 420,
     });
-    return {
-      reply: stringValue(result.reply),
-      emotionLabel: nullableString(result.emotionLabel),
-      riskLevel: riskLevelValue(result.riskLevel),
-      serviceSuggestion: serviceSuggestionValue(result.serviceSuggestion),
-    };
+    return applyCompanionReplyPolicy(
+      {
+        reply: stringValue(result.reply),
+        emotionLabel: nullableString(result.emotionLabel),
+        riskLevel: riskLevelValue(result.riskLevel),
+        serviceSuggestion: serviceSuggestionValue(result.serviceSuggestion),
+      },
+      guidance,
+    );
   }
 }
 
