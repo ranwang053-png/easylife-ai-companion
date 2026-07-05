@@ -11,6 +11,7 @@ import 'package:company_app/pages/food_sticker_editor_page.dart';
 import 'package:company_app/pages/health_page.dart';
 import 'package:company_app/pages/memory_management_page.dart';
 import 'package:company_app/pages/pet_avatar_preview_page.dart';
+import 'package:company_app/pages/pet_generation_loading_page.dart';
 import 'package:company_app/pages/pet_profile_form_page.dart';
 import 'package:company_app/pages/settings_page.dart';
 import 'package:company_app/services/agent_service.dart';
@@ -58,6 +59,17 @@ class _ControlledCompanionAgentService extends MockAgentService {
   }) {
     replyCalls += 1;
     return reply.future;
+  }
+}
+
+class _ControlledPetAvatarAgentService extends MockAgentService {
+  final Completer<String> avatar = Completer<String>();
+  var generateCalls = 0;
+
+  @override
+  Future<String> generatePetAvatarFromPhoto(String imagePath) {
+    generateCalls += 1;
+    return avatar.future;
   }
 }
 
@@ -110,6 +122,49 @@ void main() {
 
     final image = tester.widget<Image>(find.byType(Image));
     expect(image.fit, BoxFit.contain);
+  });
+
+  testWidgets('pet avatar generation shows a reassuring progress chain', (
+    tester,
+  ) async {
+    const inputImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    const generatedImage =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    final agentService = _ControlledPetAvatarAgentService();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: PetGenerationLoadingPage(
+          imagePath: inputImage,
+          agentService: agentService,
+          petProfileService: const MockPetProfileService(),
+          onCompleted: (_) {},
+        ),
+      ),
+    );
+
+    expect(find.text('上传成功'), findsOneWidget);
+    expect(find.text('读取图片'), findsOneWidget);
+    expect(find.text('分析特征'), findsOneWidget);
+    expect(find.text('生成形象'), findsOneWidget);
+    expect(agentService.generateCalls, 0);
+
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('正在读取图片特征'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 650));
+    expect(find.text('正在分析全身比例和风格'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('正在生成完整伙伴形象'), findsOneWidget);
+    expect(agentService.generateCalls, 1);
+
+    agentService.avatar.complete(generatedImage);
+    await tester.pump();
+    expect(find.text('生成完成，正在准备预览'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('dashboard uses the generated companion avatar when available', (

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -38,9 +39,9 @@ class _CompanionAvatarState extends State<CompanionAvatar>
     _syncImageProvider();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2200),
+      duration: const Duration(milliseconds: 3600),
     );
-    _scale = Tween<double>(begin: .985, end: 1.025).animate(
+    _scale = Tween<double>(begin: .99, end: 1.012).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
     if (widget.breathing && !_isWidgetTestEnvironment) {
@@ -88,7 +89,26 @@ class _CompanionAvatarState extends State<CompanionAvatar>
     );
 
     if (!widget.breathing || _isWidgetTestEnvironment) return child;
-    return ScaleTransition(scale: _scale, child: child);
+    return AnimatedBuilder(
+      animation: _controller,
+      child: child,
+      builder: (context, child) {
+        final phase = _controller.value * math.pi * 2;
+        final sway = math.sin(phase) * widget.size * .012;
+        final lift = math.sin(phase + math.pi / 3) * widget.size * .01;
+        final tilt = math.sin(phase - math.pi / 5) * .018;
+        return Transform.translate(
+          offset: Offset(sway, lift),
+          child: Transform.rotate(
+            angle: tilt,
+            child: ScaleTransition(
+              scale: _scale,
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
   }
 }
 
